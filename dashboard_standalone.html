@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PEWE Trading Desk — STANDALONE</title>
+<style>
+  :root{
+    --bg:#0a0e17; --panel:#121826; --panel2:#1a2233; --line:#243044;
+    --txt:#e6edf3; --muted:#8b98ac; --accent:#3fb6ff;
+    --marcus:#7c5cff; --rafael:#2ec4b6; --naka:#f4a261;
+    --eleanor:#ff5d73; --grace:#9d7bff; --kodok:#34d399;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(1200px 600px at 70% -10%,#16203a 0%,var(--bg) 60%);
+    color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:24px}
+  h1{font-size:22px;letter-spacing:1px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  h1 .badge{font-size:11px;background:var(--accent);color:#04121f;padding:3px 8px;border-radius:20px;font-weight:700}
+  .sub{color:var(--muted);font-size:13px;margin:4px 0 18px}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:16px}
+  .meta b{color:var(--txt)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:980px}
+  .card{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    border-radius:14px;padding:14px;position:relative;overflow:hidden;transition:.3s;opacity:.35}
+  .card.on{opacity:1;border-color:var(--c);box-shadow:0 0 18px -4px var(--c)}
+  .card .dot{width:10px;height:10px;border-radius:50%;background:var(--c);position:absolute;top:14px;right:14px;opacity:.25}
+  .card.on .dot{opacity:1;box-shadow:0 0 10px var(--c)}
+  .ava{font-size:26px}
+  .nm{font-weight:700;margin-top:6px}
+  .rl{color:var(--muted);font-size:12px;margin-top:2px}
+  .tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;background:#0c1422;border:1px solid var(--line);color:var(--c);margin-top:8px}
+  .brief{background:#070b12;border:1px solid var(--line);border-radius:14px;padding:18px;max-width:980px;
+    font-family:'Consolas',monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;min-height:200px;margin-top:18px}
+  .brief .m{color:var(--marcus)} .brief .r{color:var(--rafael)} .brief .n{color:var(--naka)}
+  .brief .e{color:var(--eleanor)} .brief .g{color:var(--grace)} .brief .k{color:var(--kodok)}
+  .legend{color:var(--muted);font-size:11px;margin-top:10px}
+  .btn{background:var(--accent);color:#04121f;border:none;padding:12px 22px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin:8px 0}
+</style>
+</head>
+<body>
+  <h1>🏢 PEWE TRADING DESK <span class="badge">STANDALONE</span></h1>
+  <div class="sub">File mandiri — langsung jalan tanpa server. Klik tombol untuk lihat agent bekerja (data contoh).</div>
+
+  <div class="meta" id="meta">
+    <span>ASSET: <b>BTC/USDT</b></span>
+    <span>TF: <b>1h</b></span>
+    <span>BIAS: <b>Bearish</b></span>
+    <span>MODE: <b>demo (testnet)</b></span>
+    <span>ACTION: <b id="m-act">—</b></span>
+    <span>EQUITY: <b>$10,000</b></span>
+    <span>PnL: <b id="m-pnl">—</b></span>
+    <span>OPEN: <b id="m-open">—</b></span>
+    <span>SIGNAL: <b>BUY</b></span>
+    <span>WAKTU: <b>2026-07-18 03:00</b></span>
+  </div>
+
+  <div class="grid">
+    <div class="card" style="--c:var(--marcus)"><span class="dot"></span><div class="ava">🎓</div><div class="nm">Prof. Marcus</div><div class="rl">Chief Analyst · Makro</div><div class="tag">FOMC · NFP · CPI</div></div>
+    <div class="card" style="--c:var(--rafael)"><span class="dot"></span><div class="ava">📈</div><div class="nm">Rafael</div><div class="rl">Technical Trader</div><div class="tag">Price Action</div></div>
+    <div class="card" style="--c:var(--naka)"><span class="dot"></span><div class="ava">₿</div><div class="nm">Nakamoto X</div><div class="rl">Crypto Specialist</div><div class="tag">On-chain · F&G</div></div>
+    <div class="card" style="--c:var(--kodok)"><span class="dot"></span><div class="ava">🐸</div><div class="nm">Kodok</div><div class="rl">Execution & Coding</div><div class="tag">RSI · Pine/Python</div></div>
+    <div class="card" style="--c:var(--eleanor)"><span class="dot"></span><div class="ava">🛡️</div><div class="nm">Madame Eleanor</div><div class="rl">Risk Manager</div><div class="tag">R:R ≥ 1:2 · 1%</div></div>
+    <div class="card" style="--c:var(--grace)"><span class="dot"></span><div class="ava">🧠</div><div class="nm">Dr. Grace</div><div class="rl">Trading Psychologist</div><div class="tag">Bias · Mindfulness</div></div>
+  </div>
+
+  <button class="btn" onclick="play()">▶ Jalankan Simulasi Orchestrator</button>
+
+  <div class="brief" id="brief">// Klik tombol di atas untuk melihat 6 agent bekerja berurutan.\n// (Ini data contoh — dari bot asli, jalankan: python serve.py di PC kamu)</div>
+  <div class="legend">Visual mandiri (data contoh). Bukan nasihat keuangan. Mode nyata: paper → demo(testnet) → live.</div>
+
+<script>
+// Data contoh (hasil 1 siklus bot). Struktur sama dengan logs/briefing.json
+const DATA = {
+  action:"entry", realized_pnl:0.0, open_positions:1,
+  sections:[
+    {key:"marcus",name:"PROF. MARCUS",role:"Makro",text:"Sentimen: RISK-OFF (Fed hawkish, NFP di atas ekspektasi).\nKorelasi: DXY naik → BTC & risk-asset tertekan. Pantau FOMC minggu depan."},
+    {key:"rafael",name:"RAFAEL",role:"Teknikal",text:"Struktur: Downtrend (EMA50 < EMA200, LH/LL).\nRSI(14): 28 (oversold area) | S&R: Sup 54.7k / Res 59.9k.\nPolanya Pin Bar di support → potensi bounce."},
+    {key:"naka",name:"NAKAMOTO X",role:"Crypto",text:"Fear & Greed: 28 (Fear) — akumulasi pelan, DYOR.\nOn-chain: net exchange outflow → whale hold. HODL, pake SL 😏"},
+    {key:"kodok",name:"KODOK",role:"Sinyal",text:"Strategi RSI mean-reversion: BUY @ 54733, SL 54120, TP 56080.\nConviction 0.82 — sinyal kuat di area oversold."},
+    {key:"eleanor",name:"MADAME ELEANOR",role:"Risk",text:"✅ Risk aman. R:R 2.5 ≥ 2.0. Risk per trade 1% = $100.\nUkuran posisi: 0.0183 BTC. Kontingensi: tutup jika tembus SL.\n(ibu-ibu ngingetin: jangan over-leverage ya, Nak!)"},
+    {key:"grace",name:"DR. GRACE",role:"Psikologi",text:"Waspadai FOMO beli karena 'murah'. Tarik napas, ikuti rencana.\nApakah kamu masuk karena sinyal, atau karena takut ketinggalan?"}
+  ]
+};
+const COLORS={marcus:'m',rafael:'r',naka:'n',kodok:'k',eleanor:'e',grace:'g'};
+const cardMap={};
+document.querySelectorAll('.card').forEach((c,i)=>{
+  const order=['marcus','rafael','naka','kodok','eleanor','grace'];
+  cardMap[order[i]]=c;
+});
+function play(){
+  document.getElementById('m-act').textContent=(DATA.action||'hold').toUpperCase();
+  document.getElementById('m-pnl').textContent=(DATA.realized_pnl>=0?'+':'')+'$'+DATA.realized_pnl;
+  document.getElementById('m-open').textContent=DATA.open_positions;
+  const brief=document.getElementById('brief'); brief.innerHTML='';
+  const secs=DATA.sections; let i=0;
+  function step(){
+    if(i>=secs.length){
+      const d=document.createElement('div'); d.style.color='var(--muted)';
+      d.textContent='\n└─ ⚠️ DISCLAIMER: Bukan nasihat keuangan ─┘';
+      brief.appendChild(d); return;
+    }
+    const s=secs[i]; const card=cardMap[s.key];
+    if(card) card.classList.add('on');
+    const w=document.createElement('div'); w.className=COLORS[s.key]||'';
+    w.textContent=`🔷 ${s.name} (${s.role})\n   → ${s.text}\n\n`;
+    brief.appendChild(w); brief.scrollTop=brief.scrollHeight;
+    i++; setTimeout(step,800);
+  }
+  step();
+}
+</script>
+</body>
+</html>
