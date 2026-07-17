@@ -8,7 +8,7 @@
 # "paper"  : simulasi lokal, tanpa koneksi exchange (aman 100%)
 # "demo"   : REAL MARKET via TESTNET/sandbox exchange (uang virtual, aman uji)
 # "live"   : REAL MONEY — HANYA setelah demo stabil + confirm_live_manually=true
-mode: paper
+mode: demo
 confirm_live_manually: true      # live hanya nyala jika diset true + .env.live ada
 
 # --- EXCHANGE (CCXT id) ---

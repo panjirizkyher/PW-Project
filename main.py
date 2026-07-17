@@ -9,6 +9,7 @@ import sys
 import time
 import yaml
 
+from core.env_loader import load_env
 from core.orchestrator import Orchestrator
 
 
@@ -18,6 +19,7 @@ def load_settings(path: str = "config/settings.yaml") -> dict:
 
 
 def main():
+    load_env()
     settings = load_settings()
     mock = "--mock" in sys.argv
     orch = Orchestrator(settings, mock=mock)

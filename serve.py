@@ -13,6 +13,7 @@ import yaml
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import threading
 
+from core.env_loader import load_env
 from core.orchestrator import Orchestrator
 
 
@@ -43,6 +44,7 @@ def run_loop(orch: Orchestrator, interval: int):
 
 
 def main():
+    load_env()
     settings = load_settings()
     mock = "--mock" in sys.argv
     orch = Orchestrator(settings, mock=mock)
