@@ -4,17 +4,29 @@
 # LLM/agent TIDAK BISA mengoverride nilai di bawah ini.
 # ============================================================
 
-# --- MODE EKSEKUSI (WAJIB paper dulu) ---
-mode: paper                  # "paper" (simulasi lokal) | "live" (REAL MONEY)
-testnet: true                # gunakan testnet exchange bila live
-confirm_live_manually: true  # live hanya nyala jika diset true + file .env.live ada
+# --- MODE EKSEKUSI ---
+# "paper"  : simulasi lokal, tanpa koneksi exchange (aman 100%)
+# "demo"   : REAL MARKET via TESTNET/sandbox exchange (uang virtual, aman uji)
+# "live"   : REAL MONEY — HANYA setelah demo stabil + confirm_live_manually=true
+mode: paper
+confirm_live_manually: true      # live hanya nyala jika diset true + .env.live ada
 
-# --- EXCHANGE (CCXT id, bisa diganti: binance, bybit, oanda, ...) ---
+# --- EXCHANGE (CCXT id) ---
 exchange:
   id: binance
   symbol: "BTC/USDT"
   timeframe: "1h"
-  # untuk forex (OANDA) contoh: symbol: "EUR/USD", exchange id: "oanda"
+  # Forex (OANDA): id: "oanda", symbol: "EUR/USD"
+
+# --- API KEY (hanya trade, TANPA withdrawal) ---
+# Nama variabel env di .env. Key testnet BEDA dari key live.
+api_keys:
+  demo:
+    key_env: "EXCHANGE_DEMO_KEY"
+    secret_env: "EXCHANGE_DEMO_SECRET"
+  live:
+    key_env: "EXCHANGE_LIVE_KEY"
+    secret_env: "EXCHANGE_LIVE_SECRET"
 
 # --- RISK (di-enforce oleh risk_engine, Madame Eleanor) ---
 risk:
@@ -24,6 +36,7 @@ risk:
   min_reward_risk_ratio: 2.0        # R:R minimal 1:2
   max_open_positions: 3             # anti over-leverage
   max_total_exposure_pct: 10.0      # total eksposur maksimal 10% ekuitas
+  max_hold_bars: 48                 # tutup posisi bila lewat N bar tanpa TP/SL (timeout)
 
 # --- SIGNAL ENGINE (KODOK) ---
 signal:

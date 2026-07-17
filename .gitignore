@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 logs/audit.log
 logs/circuit_state.json
+logs/briefing.json
+logs/state.json

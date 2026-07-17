@@ -1,57 +1,71 @@
 """
-EXECUTOR — paper (default) & live (testnet/real).
-Paper: simulasi lokal, tidak ada network ke exchange.
-Live: via CCXT, HANYA jika settings.mode=="live" DAN confirm_live_manually.
+EXECUTOR — layer aksi (PEWE)
+- PaperExecutor : simulasi lokal, TANPA koneksi exchange.
+- ExchangeExecutor : CCXT ke exchange nyata/testnet (hanya trade, TANPA withdrawal).
+Posisi & equity DIKELUARKAN dari executor (disimpan di state.py) supaya
+persist antar siklus & restart. Executor hanya: open / close / cek harga.
 """
 from __future__ import annotations
-import time
-from dataclasses import dataclass, field
-from typing import Optional
+import ccxt
+from dataclasses import dataclass
 
 
 @dataclass
 class Fill:
     symbol: str
-    side: str
+    side: str          # buy / sell
     qty: float
     price: float
-    ts: float
     paper: bool
+    ts: float = 0.0
     pnl: float = 0.0
 
 
 class PaperExecutor:
-    """Simulasi eksekusi lokal. Menyimpan posisi & PnL sederhana."""
-    def __init__(self, starting_balance: float = 10000.0):
-        self.balance = starting_balance
-        self.positions: list[dict] = []
+    """Eksekusi simulasi. Harga diberikan caller (dari market data)."""
+    def __init__(self):
+        pass
 
     def execute(self, symbol, side, qty, price) -> Fill:
-        # simulasi: catat posisi; PnL dihitung saat close (lihat close_position)
-        pos = {"symbol": symbol, "side": side, "qty": qty, "entry": price, "ts": time.time()}
-        self.positions.append(pos)
-        return Fill(symbol, side, qty, price, time.time(), paper=True)
+        import time
+        return Fill(symbol, side, qty, price, paper=True, ts=time.time())
 
-    def close_position(self, pos_idx: int, exit_price: float) -> Fill:
-        pos = self.positions.pop(pos_idx)
-        if pos["side"] == "buy":
-            pnl = (exit_price - pos["entry"]) * pos["qty"]
-        else:
-            pnl = (pos["entry"] - exit_price) * pos["qty"]
-        self.balance += pnl
-        return Fill(pos["symbol"], pos["side"], pos["qty"], exit_price, time.time(), paper=True, pnl=pnl)
+    def close(self, symbol, side, qty, price) -> Fill:
+        import time
+        return Fill(symbol, side, qty, price, paper=True, ts=time.time())
 
 
-class LiveExecutor:
-    """CCXT live/testnet. TIDAK dijalankan kecuali di-confirm di settings."""
-    def __init__(self, exchange_id: str, api_key: str, api_secret: str, testnet: bool):
-        import ccxt
+class ExchangeExecutor:
+    """CCXT ke exchange. testnet=True => set_sandbox_mode (demo, uang virtual).
+
+    PENTING: API key HANYA izin trading, TANPA withdrawal.
+    """
+    def __init__(self, exchange_id: str, api_key: str, api_secret: str, testnet: bool = True):
         cls = getattr(ccxt, exchange_id)
-        self.ex = cls({"apiKey": api_key, "secret": api_secret, "enableRateLimit": True})
+        self.ex = cls({
+            "apiKey": api_key,
+            "secret": api_secret,
+            "enableRateLimit": True,
+            "options": {"defaultType": "future"} if exchange_id == "binance" else {},
+        })
+        # Binance punya sandbox testnet; exchange lain pakai testnet flag bila ada
         if testnet and hasattr(self.ex, "set_sandbox_mode"):
-            self.ex.set_sandbox_mode(True)
+            try:
+                self.ex.set_sandbox_mode(True)
+            except Exception:
+                pass
+        self.testnet = testnet
 
-    def execute(self, symbol, side, qty, price):
-        # market order (trade-only key, tanpa withdrawal)
+    def last_price(self, symbol: str) -> float:
+        return float(self.ex.fetch_ticker(symbol)["last"])
+
+    def execute(self, symbol, side, qty, price=None) -> Fill:
         order = self.ex.create_order(symbol, "market", side, qty, None)
-        return Fill(symbol, side, qty, price, time.time(), paper=False)
+        fill_price = float(order.get("average") or order.get("price") or self.last_price(symbol))
+        return Fill(symbol, side, qty, fill_price, paper=False)
+
+    def close(self, symbol, side, qty, price=None) -> Fill:
+        # side di sini = arah PENUTUPAN (kebalikan posisi)
+        order = self.ex.create_order(symbol, "market", side, qty, None)
+        fill_price = float(order.get("average") or order.get("price") or self.last_price(symbol))
+        return Fill(symbol, side, qty, fill_price, paper=False)

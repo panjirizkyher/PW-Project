@@ -8,8 +8,18 @@ Default **PAPER-FIRST** — eksekusi real hanya bisa nyala setelah konfirmasi ek
 Bukan nasihat keuangan. Trading crypto/forex berisiko kehilangan seluruh modal.
 Framework ini untuk edukasi/eksperimen. Uji di paper/testnet dulu.
 
+## 3 Mode Eksekusi (urut naik risiko)
+1. **`paper`** — simulasi lokal, tanpa koneksi exchange. Default & paling aman untuk dev.
+2. **`demo`** — REAL MARKET via **testnet/sandbox** exchange (uang virtual). Uji bot dengan
+   kondisi pasar nyata tanpa risiko uang. Butuh API key testnet (trade-only).
+3. **`live`** — REAL MONEY. HANYA setelah `demo` stabil + `confirm_live_manually: true`.
+
+## State & Siklus
+- `core/state.py` menyimpan posisi terbuka + equity ke `logs/state.json` (persist antar siklus/restart).
+- Setiap siklus: data → analisis → **EXIT dulu** (TP/SL/timeout) → **ENTRY** (bila sinyal + gate lolos)
+  → simpan state. Bot tidak lupa posisi meski di-restart.
+
 ## Keamanan (non-negotiable)
-- Mode `paper` sebagai default. `live` hanya jika `mode: live` + `confirm_live_manually`.
 - API exchange = **trade-only, tanpa withdrawal**.
 - Hard guardrail (pos size, R:R ≥ 1:2, max daily loss) di-enforce di `core/risk_engine.py`,
   BUKAN cuma nasihat LLM.
@@ -19,10 +29,12 @@ Framework ini untuk edukasi/eksperimen. Uji di paper/testnet dulu.
 ## Struktur
 ```
 config/      settings.yaml, .env.example
-core/        llm_client, risk_engine, circuit_breaker, executor, indicators, orchestrator
-data/        market (CCXT), onchain (Fear&Greed), macro
+core/        llm_client, risk_engine, circuit_breaker, executor, indicators, orchestrator, state
+data/        market (CCXT), onchain (Fear&Greed), macro, mock (offline test)
 agents/      6 persona (marcus, rafael, nakamoto, eleanor, grace, kodok)
 notify/      telegram
+serve.py     jalankan desk + dashboard live (HTTP :8000)
+dashboard.html  visual 6 agent (fetch logs/briefing.json, auto-refresh)
 main.py      entry point
 ```
 

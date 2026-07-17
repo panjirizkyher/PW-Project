@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PEWE Trading Desk — LIVE</title>
+<style>
+  :root{
+    --bg:#0a0e17; --panel:#121826; --panel2:#1a2233; --line:#243044;
+    --txt:#e6edf3; --muted:#8b98ac; --accent:#3fb6ff;
+    --marcus:#7c5cff; --rafael:#2ec4b6; --naka:#f4a261;
+    --eleanor:#ff5d73; --grace:#9d7bff; --kodok:#34d399;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(1200px 600px at 70% -10%,#16203a 0%,var(--bg) 60%);
+    color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:24px}
+  h1{font-size:22px;letter-spacing:1px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  h1 .badge{font-size:11px;background:var(--accent);color:#04121f;padding:3px 8px;border-radius:20px;font-weight:700}
+  .sub{color:var(--muted);font-size:13px;margin:4px 0 18px}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:16px}
+  .meta b{color:var(--txt)}
+  .dot-live{width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block;box-shadow:0 0 8px #34d399}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:980px}
+  .card{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    border-radius:14px;padding:14px;position:relative;overflow:hidden;transition:.3s;opacity:.35}
+  .card.on{opacity:1;border-color:var(--c);box-shadow:0 0 18px -4px var(--c)}
+  .card .dot{width:10px;height:10px;border-radius:50%;background:var(--c);position:absolute;top:14px;right:14px;opacity:.25}
+  .card.on .dot{opacity:1;box-shadow:0 0 10px var(--c)}
+  .ava{font-size:26px}
+  .nm{font-weight:700;margin-top:6px}
+  .rl{color:var(--muted);font-size:12px;margin-top:2px}
+  .tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;background:#0c1422;border:1px solid var(--line);color:var(--c);margin-top:8px}
+  .brief{background:#070b12;border:1px solid var(--line);border-radius:14px;padding:18px;max-width:980px;
+    font-family:'Consolas',monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;min-height:200px;margin-top:18px}
+  .brief .m{color:var(--marcus)} .brief .r{color:var(--rafael)} .brief .n{color:var(--naka)}
+  .brief .e{color:var(--eleanor)} .brief .g{color:var(--grace)} .brief .k{color:var(--kodok)}
+  .legend{color:var(--muted);font-size:11px;margin-top:10px}
+  .status{font-size:12px;color:var(--muted);margin-top:6px}
+  .status.err{color:var(--eleanor)}
+</style>
+</head>
+<body>
+  <h1>🏢 PEWE TRADING DESK <span class="badge">LIVE</span> <span class="dot-live"></span></h1>
+  <div class="sub">6 spesialis bekerja berurutan. Data dari <code>logs/briefing.json</code> (dihasilkan orchestrator). Auto-refresh tiap 60s.</div>
+
+  <div class="meta" id="meta">
+    <span>ASSET: <b id="m-asset">—</b></span>
+    <span>TF: <b id="m-tf">—</b></span>
+    <span>BIAS: <b id="m-bias">—</b></span>
+    <span>MODE: <b id="m-mode">—</b></span>
+    <span>ACTION: <b id="m-act">—</b></span>
+    <span>EQUITY: <b id="m-eq">—</b></span>
+    <span>PnL: <b id="m-pnl">—</b></span>
+    <span>OPEN: <b id="m-open">—</b></span>
+    <span>SIGNAL: <b id="m-sig">—</b></span>
+    <span>WAKTU: <b id="m-time">—</b></span>
+  </div>
+
+  <div class="grid">
+    <div class="card" style="--c:var(--marcus)"><span class="dot"></span><div class="ava">🎓</div><div class="nm">Prof. Marcus</div><div class="rl">Chief Analyst · Makro</div><div class="tag">FOMC · NFP · CPI</div></div>
+    <div class="card" style="--c:var(--rafael)"><span class="dot"></span><div class="ava">📈</div><div class="nm">Rafael</div><div class="rl">Technical Trader</div><div class="tag">Price Action</div></div>
+    <div class="card" style="--c:var(--naka)"><span class="dot"></span><div class="ava">₿</div><div class="nm">Nakamoto X</div><div class="rl">Crypto Specialist</div><div class="tag">On-chain · F&G</div></div>
+    <div class="card" style="--c:var(--kodok)"><span class="dot"></span><div class="ava">🐸</div><div class="nm">Kodok</div><div class="rl">Execution & Coding</div><div class="tag">RSI · Pine/Python</div></div>
+    <div class="card" style="--c:var(--eleanor)"><span class="dot"></span><div class="ava">🛡️</div><div class="nm">Madame Eleanor</div><div class="rl">Risk Manager</div><div class="tag">R:R ≥ 1:2 · 1%</div></div>
+    <div class="card" style="--c:var(--grace)"><span class="dot"></span><div class="ava">🧠</div><div class="nm">Dr. Grace</div><div class="rl">Trading Psychologist</div><div class="tag">Bias · Mindfulness</div></div>
+  </div>
+
+  <div class="brief" id="brief">// Menunggu data dari orchestrator...\n// Jalankan: python serve.py (atau --once)</div>
+  <div class="status" id="status">● menunggu briefing.json</div>
+  <div class="legend">Visual ini membaca output nyata orchestrator (paper mode). Bukan nasihat keuangan.</div>
+
+<script>
+const COLORS={marcus:'m',rafael:'r',naka:'n',kodok:'k',eleanor:'e',grace:'g'};
+const cardMap={};
+document.querySelectorAll('.card').forEach((c,i)=>{
+  // urutan sesuai alur: marcus, rafael, naka, kodok, eleanor, grace
+  const order=['marcus','rafael','naka','kodok','eleanor','grace'];
+  cardMap[order[i]]=c;
+});
+
+function render(data){
+  // meta
+  document.getElementById('m-asset').textContent=data.asset||'—';
+  document.getElementById('m-tf').textContent=data.timeframe||'—';
+  document.getElementById('m-bias').textContent=data.bias||'—';
+  document.getElementById('m-mode').textContent=data.mode||'—';
+  document.getElementById('m-act').textContent=(data.action||'hold').toUpperCase();
+  document.getElementById('m-eq').textContent=(data.equity!=null?'$'+data.equity:'—');
+  document.getElementById('m-pnl').textContent=(data.realized_pnl!=null?(data.realized_pnl>=0?'+':'')+'$'+data.realized_pnl:'—');
+  document.getElementById('m-open').textContent=data.open_positions||0;
+  const sig=data.signal||{};
+  document.getElementById('m-sig').textContent=(sig.side||'hold').toUpperCase();
+  document.getElementById('m-time').textContent=data.timestamp||'—';
+
+  const brief=document.getElementById('brief');
+  brief.innerHTML='';
+  const secs=data.sections||[];
+  let i=0;
+  function step(){
+    if(i>=secs.length){
+      const d=document.createElement('div'); d.style.color='var(--muted)';
+      d.textContent='\n└─ ⚠️ DISCLAIMER: Bukan nasihat keuangan ─┘';
+      brief.appendChild(d);
+      document.getElementById('status').textContent='● briefing terakhir: '+ (data.timestamp||'');
+      return;
+    }
+    const s=secs[i];
+    const card=cardMap[s.key];
+    if(card) card.classList.add('on');
+    const wrap=document.createElement('div'); wrap.className=COLORS[s.key]||'';
+    wrap.textContent=`🔷 ${s.name} (${s.role})\n   → ${s.text}\n\n`;
+    brief.appendChild(wrap);
+    brief.scrollTop=brief.scrollHeight;
+    i++; setTimeout(step, 650);
+  }
+  step();
+}
+
+async function poll(){
+  try{
+    const r=await fetch('logs/briefing.json?t='+Date.now());
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    render(data);
+    document.getElementById('status').classList.remove('err');
+  }catch(e){
+    const st=document.getElementById('status');
+    st.textContent='● menunggu briefing.json ('+e.message+')';
+    st.classList.add('err');
+  }
+}
+poll();
+setInterval(poll, 60000);
+</script>
+</body>
+</html>
