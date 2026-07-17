@@ -17,7 +17,7 @@ import math
 from core.indicators import add_indicators
 
 
-def _simulate_one(df, sg: dict, risk: dict):
+def _simulate_one(df, sg: dict, risk: dict, fee_pct: float = 0.001):
     """Simulasikan 1 token. Return list trade dict."""
     rsi_o = float(sg.get("rsi_oversold", 35.0))
     rsi_b = float(sg.get("rsi_overbought", 65.0))
@@ -54,6 +54,7 @@ def _simulate_one(df, sg: dict, risk: dict):
                     pnl = (price - pos["entry"]) / pos["entry"]
                 else:
                     pnl = (pos["entry"] - price) / pos["entry"]
+                pnl -= 2 * fee_pct  # fee masuk + keluar
                 trades.append({"side": pos["side"], "pnl": pnl, "reason": exit_reason, "bars": pos["bars"]})
                 pos = None
         # entry bila tidak ada posisi
@@ -100,7 +101,7 @@ def _metrics(trades: list) -> dict:
     }
 
 
-def run(market, settings: dict, symbols: list, limit: int = 500, testnet: bool = False) -> dict:
+def run(market, settings: dict, symbols: list, limit: int = 500, testnet: bool = False, save: bool = True) -> dict:
     """Backtest beberapa token. Return dict per-symbol + aggregate."""
     sg = settings.get("signal", {})
     rk = settings.get("risk", {})
@@ -121,4 +122,9 @@ def run(market, settings: dict, symbols: list, limit: int = 500, testnet: bool =
         except Exception as e:
             out[sym] = {"error": str(e)}
     out["__AGGREGATE__"] = _metrics(all_trades)
+    if save:
+        import os, json
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/backtest_report.json", "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
     return out

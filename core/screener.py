@@ -84,9 +84,9 @@ def score_symbol(df, rsi_oversold: float, rsi_overbought: float) -> float:
     return round(min(100.0, s), 2)
 
 
-def list_symbols(market, quote: str = "USDT", min_usdt_vol: float = 1_000_000.0) -> list:
+def list_symbols(market, quote: str = "USDT", min_usdt_vol: float = 5_000_000.0) -> list:
     """Daftar pasangan spot yg likuid (24h quote volume > min)."""
-    STABLE = {"USDC", "BUSD", "TUSD", "DAI", "FDUSD", "USDP", "USDD", "TUSD"}
+    STABLE = {"USDC", "BUSD", "TUSD", "DAI", "FDUSD", "USDP", "USDD", "USD1", "UST", "SUSD"}
     try:
         tickers = market.ex.fetch_tickers()
     except Exception:
@@ -97,6 +97,14 @@ def list_symbols(market, quote: str = "USDT", min_usdt_vol: float = 1_000_000.0)
             continue
         base = sym.split("/")[0]
         if base in STABLE:
+            continue
+        # buang token "murah/sampah": harga terlalu rendah atau volume tipis
+        last = t.get("last") or t.get("close") or t.get("bid") or 0
+        try:
+            last = float(last)
+        except Exception:
+            last = 0
+        if last > 0 and last < 0.5:   # harga < $0.5 = biasanya sampah/stable murah
             continue
         vol = (t.get("quoteVolume") or t.get("baseVolume") or 0) or 0
         if vol >= min_usdt_vol:

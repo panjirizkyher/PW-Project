@@ -7,3 +7,4 @@ logs/audit.log
 logs/circuit_state.json
 logs/briefing.json
 logs/state.json
+logs/backtest_report.json
