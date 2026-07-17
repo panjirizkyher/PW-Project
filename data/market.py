@@ -9,8 +9,12 @@ import pandas as pd
 
 
 class MarketData:
-    def __init__(self, exchange_id: str = "binance"):
-        self.ex = getattr(ccxt, exchange_id)({"enableRateLimit": True})
+    def __init__(self, exchange_id: str = "binance", testnet: bool = False):
+        opts = {"enableRateLimit": True}
+        self.ex = getattr(ccxt, exchange_id)(opts)
+        if exchange_id == "binance" and testnet:
+            # cara resmi ccxt: set_sandbox_mode arahkan host ke testnet.binance.vision
+            self.ex.set_sandbox_mode(True)
 
     def ohlcv(self, symbol: str, timeframe: str = "1h", limit: int = 200) -> pd.DataFrame:
         try:

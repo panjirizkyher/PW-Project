@@ -31,7 +31,10 @@ class Orchestrator:
         self.mock = mock
         self.mode = settings.get("mode", "paper")
         self.llm = LLMClient(settings)
-        self.market = MarketData(settings.get("exchange", {}).get("id", "binance"))
+        self.market = MarketData(
+            settings.get("exchange", {}).get("id", "binance"),
+            testnet=(self.mode == "demo"),
+        )
         self.risk = RiskEngine(settings)
         self.breaker = CircuitBreaker()
         # executor dipilih berdasar mode

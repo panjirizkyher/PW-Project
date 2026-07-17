@@ -42,11 +42,13 @@ class ExchangeExecutor:
     """
     def __init__(self, exchange_id: str, api_key: str, api_secret: str, testnet: bool = True):
         cls = getattr(ccxt, exchange_id)
+        # Testnet Binance hanya SPOT. Spot dipakai juga untuk live spot.
+        # (Futures bisa ditambah lewat settings.exchange.market_type bila perlu.)
         self.ex = cls({
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
-            "options": {"defaultType": "future"} if exchange_id == "binance" else {},
+            "options": {"defaultType": "spot", "adjustForTimeDifference": True},
         })
         # Binance punya sandbox testnet; exchange lain pakai testnet flag bila ada
         if testnet and hasattr(self.ex, "set_sandbox_mode"):
