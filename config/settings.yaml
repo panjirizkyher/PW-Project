@@ -1,65 +1,44 @@
-# ============================================================
-# TRADING DESK — GLOBAL SETTINGS
-# SEMUA NILAI KEAMANAN BERLAKU SEBAGAI HARD GUARDRAIL DI KODE.
-# LLM/agent TIDAK BISA mengoverride nilai di bawah ini.
-# ============================================================
-
-# --- MODE EKSEKUSI ---
-# "paper"  : simulasi lokal, tanpa koneksi exchange (aman 100%)
-# "demo"   : REAL MARKET via TESTNET/sandbox exchange (uang virtual, aman uji)
-# "live"   : REAL MONEY — HANYA setelah demo stabil + confirm_live_manually=true
 mode: demo
-confirm_live_manually: true      # live hanya nyala jika diset true + .env.live ada
-
-# --- EXCHANGE (CCXT id) ---
+confirm_live_manually: true
 exchange:
   id: binance
-  symbol: "BTC/USDT"
-  timeframe: "1h"
-  # Forex (OANDA): id: "oanda", symbol: "EUR/USD"
-
-# --- API KEY (hanya trade, TANPA withdrawal) ---
-# Nama variabel env di .env. Key testnet BEDA dari key live.
+  symbol: BTC/USDT
+  timeframe: 1h
 api_keys:
   demo:
-    key_env: "EXCHANGE_DEMO_KEY"
-    secret_env: "EXCHANGE_DEMO_SECRET"
+    key_env: EXCHANGE_DEMO_KEY
+    secret_env: EXCHANGE_DEMO_SECRET
   live:
-    key_env: "EXCHANGE_LIVE_KEY"
-    secret_env: "EXCHANGE_LIVE_SECRET"
-
-# --- RISK (di-enforce oleh risk_engine, Madame Eleanor) ---
+    key_env: EXCHANGE_LIVE_KEY
+    secret_env: EXCHANGE_LIVE_SECRET
 risk:
-  account_balance: 10000.0          # saldo awal simulasi (paper)
-  risk_per_trade_pct: 1.0           # max 1% per trade
-  max_daily_loss_pct: 3.0           # circuit breaker: stop jika drawdown harian > 3%
-  min_reward_risk_ratio: 2.0        # R:R minimal 1:2
-  max_open_positions: 3             # anti over-leverage
-  max_total_exposure_pct: 10.0      # total eksposur maksimal 10% ekuitas
-  max_hold_bars: 48                 # tutup posisi bila lewat N bar tanpa TP/SL (timeout)
-
-# --- SIGNAL ENGINE (KODOK) ---
+  account_balance: 10000.0
+  risk_per_trade_pct: 1.0
+  max_daily_loss_pct: 3.0
+  min_reward_risk_ratio: 2.0
+  max_open_positions: 3
+  max_total_exposure_pct: 10.0
+  max_hold_bars: 48
 signal:
-  strategy: rsi_mean_reversion     # strategi deterministik default
+  strategy: rsi_mean_reversion
   rsi_period: 14
-  rsi_oversold: 35.0
+  rsi_oversold: 42.0
   rsi_overbought: 65.0
-  target_reward_risk_ratio: 2.5    # target sinyal (di atas floor 2.0 risk.min_reward_risk_ratio)
-
-# --- LLM PERSONA LAYER ---
+  target_reward_risk_ratio: 2.5
 llm:
-  base_url: "https://inference.nousresearch.com/v1"  # ganti ke endpoint Hermes/Nous
-  model: "tencent/hy3:free"
-  api_key_env: "LLM_API_KEY"
+  base_url: https://inference.nousresearch.com/v1
+  model: tencent/hy3:free
+  api_key_env: LLM_API_KEY
   temperature: 0.3
-  enabled: true                    # false = hanya sinyal deterministik + teks statis
-
-# --- NOTIFIKASI TELEGRAM ---
+  enabled: true
 telegram:
-  enabled: false                   # set true + isi token/chat_id di .env
-  bot_token_env: "TELEGRAM_BOT_TOKEN"
-  chat_id_env: "TELEGRAM_CHAT_ID"
-
-# --- SCHEDULE ---
+  enabled: false
+  bot_token_env: TELEGRAM_BOT_TOKEN
+  chat_id_env: TELEGRAM_CHAT_ID
+dashboard:
+  port: 8000
+  refresh_seconds: 4
+price_feed:
+  refresh_seconds: 5
 schedule:
-  run_every_minutes: 60            # orchestrator jalan tiap 60 menit
+  run_every_minutes: 60
