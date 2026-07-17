@@ -13,6 +13,7 @@ from core.risk_engine import RiskEngine, ProposedTrade
 from core.circuit_breaker import CircuitBreaker
 from core.executor import PaperExecutor, ExchangeExecutor
 from core.state import load_state, save_state, reset_day_if_new
+from core.screener import screen
 from data.onchain import fear_greed
 from data.macro import next_events
 from data.market import MarketData
@@ -74,9 +75,12 @@ class Orchestrator:
         return out["briefing_text"]
 
     def run_structured(self) -> dict:
-        """Sama seperti run(), tapi kembalikan dict terstruktur + tulis briefing.json."""
+        """Sama seperti run(), tapi kembalikan dict terstruktur + tulis briefing.json.
+        Multi-symbol: scan N token via screener, eksekusi HANYA yang skor tertinggi
+        & sinyal valid (presisi).
+        """
         ex = self.s.get("exchange", {})
-        symbol, tf = ex.get("symbol", "BTC/USDT"), ex.get("timeframe", "1h")
+        tf = ex.get("timeframe", "1h")
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
         if self.breaker.halted:
@@ -84,7 +88,12 @@ class Orchestrator:
             send(msg, self.s)
             return msg
 
-        # 1. DATA
+        # 1. SCREENER — cari setup terbaik dari banyak token
+        top = screen(self.market, self.s, top_n=3, max_scan=50, mock=self.mock)
+        best = top[0] if top else None
+        symbol = best["symbol"] if best else ex.get("symbol", "BTC/USDT")
+
+        # 2. DATA untuk token terpilih
         if self.mock:
             from data.mock import mock_ohlcv
             df = add_indicators(mock_ohlcv(200))
@@ -96,55 +105,63 @@ class Orchestrator:
             fg = fear_greed() if self.is_crypto else {}
         macro = next_events()
 
-        # 2. MARCUS (makro)
+        # 3. MARCUS (makro)
         marcus_txt = self.marcus.analyze(macro, fg)
 
-        # 3. RAFAEL (teknikal)
+        # 4. RAFAEL (teknikal)
         raf = self.rafael.analyze(df)
         bias = raf.get("bias", "n/a")
 
-        # 4. NAKAMOTO (crypto)
+        # 5. NAKAMOTO (crypto)
         naka_txt = self.naka.analyze(fg) if self.is_crypto else "(bukan aset crypto — lewati)"
 
-        # 5. KODOK (sinyal deterministik)
+        # 6. KODOK (sinyal deterministik) untuk token terpilih
         sig = self.kodok.generate_signal(df, last) if (last and not df.empty) else {}
         eleanor_txt = ""
         fill_info = ""
         trade_action = "hold"
 
-        # === MANAJEMEN EXIT dulu (tutup posisi bila TP/SL/time kena) ===
+        # === MANAJEMEN EXIT dulu (per posisi, pakai simbol masing-masing) ===
         exited_this_cycle = False
         for pos in list(self.state["positions"]):
+            psym = pos["symbol"]
+            if self.mock:
+                pl = float(add_indicators(mock_ohlcv(200)).iloc[-1]["close"])
+            elif self.exec.paper:
+                pl = last
+            else:
+                try:
+                    pl = self.market.last_price(psym)
+                except Exception:
+                    pl = last
             exit_side = "sell" if pos["side"] == "buy" else "buy"
             reason = None
             if pos["side"] == "buy":
-                if last <= pos["stop_loss"]:
+                if pl <= pos["stop_loss"]:
                     reason = "SL"
-                elif last >= pos["take_profit"]:
+                elif pl >= pos["take_profit"]:
                     reason = "TP"
             else:
-                if last >= pos["stop_loss"]:
+                if pl >= pos["stop_loss"]:
                     reason = "SL"
-                elif last <= pos["take_profit"]:
+                elif pl <= pos["take_profit"]:
                     reason = "TP"
-            # timeout: tutup bila lewat max_bars tanpa menyentuh SL/TP
             max_bars = int(self.s.get("risk", {}).get("max_hold_bars", 48))
             if reason is None and (pos.get("bars", 0) + 1) >= max_bars:
                 reason = "TIMEOUT"
             if reason:
-                fill = self.exec.close(symbol, exit_side, pos["qty"], last)
+                fill = self.exec.close(psym, exit_side, pos["qty"], pl)
                 pnl = (fill.price - pos["entry"]) * pos["qty"] if pos["side"] == "buy" else (pos["entry"] - fill.price) * pos["qty"]
                 self.state["equity"] += pnl
                 self.state["realized_pnl"] += pnl
                 self.state["positions"].remove(pos)
-                fill_info = f"EXIT {reason}: {exit_side} {pos['qty']:.6f} @ {fill.price:.2f} | PnL {pnl:+.2f}"
+                fill_info = f"EXIT {reason}: {exit_side} {pos['qty']:.6f} {psym} @ {fill.price:.2f} | PnL {pnl:+.2f}"
                 trade_action = f"exit_{reason.lower()}"
                 exited_this_cycle = True
-                # circuit breaker: cek drawdown harian
                 self.breaker.check(self.risk.daily_loss_breached(self.state["realized_pnl"]))
 
-        # === ENTRY (buka posisi bila sinyal + gate lolos + masih bisa) ===
-        if not exited_this_cycle and sig and sig.get("side") in ("buy", "sell"):
+        # === ENTRY — cuma token skor tertinggi & sinyal valid ===
+        if not exited_this_cycle and best and sig and sig.get("side") in ("buy", "sell"):
             t = ProposedTrade(symbol, sig["side"], sig["entry"],
                               sig["stop_loss"], sig["take_profit"], sig["conviction"])
             trade_ok, rr_msg = self.risk.validate(t)
@@ -152,7 +169,6 @@ class Orchestrator:
             eleanor_txt = self.eleanor.comment(trade_ok and can_open, rr_msg,
                                               len(self.state["positions"]), self.risk.max_open)
             if trade_ok and can_open and not self.state["positions"]:
-                # baru buka 1 posisi sekaligus (anti over-leverage)
                 qty = self.risk.position_size(t)
                 fill = self.exec.execute(symbol, sig["side"], qty, sig["entry"])
                 self.state["positions"].append({
@@ -160,24 +176,22 @@ class Orchestrator:
                     "entry": fill.price, "stop_loss": sig["stop_loss"],
                     "take_profit": sig["take_profit"], "bars": 0,
                 })
-                fill_info = f"{'PAPER' if fill.paper else 'LIVE'} FILL: {sig['side']} {qty:.6f} @ {fill.price:.2f}"
+                fill_info = f"{'PAPER' if fill.paper else 'LIVE'} FILL: {sig['side']} {qty:.6f} {symbol} @ {fill.price:.2f}"
                 trade_action = "entry"
-            elif not eleanor_txt:
-                eleanor_txt = self.eleanor.comment(trade_ok and can_open, rr_msg,
-                                                  len(self.state["positions"]), self.risk.max_open)
         else:
             if not eleanor_txt:
-                eleanor_txt = self.eleanor.comment(True, "Hold — tidak ada sinyal.", 0, self.risk.max_open)
+                eleanor_txt = self.eleanor.comment(
+                    False, "Hold — tidak ada sinyal/setup terbaik.",
+                    len(self.state["positions"]), self.risk.max_open)
             if not fill_info:
-                fill_info = "Sinyal: HOLD (RSI netral)."
+                fill_info = "Sinyal: HOLD (RSI netral / tidak ada setup bagus)."
 
-        # simpan state (posisi + equity persist antar siklus)
         save_state(self.state)
 
-        # 6. GRACE (psikologi)
+        # 7. GRACE (psikologi)
         grace_txt = self.grace.reflect("FOMO" if sig.get("conviction", 0) > 0.8 else "fear/overtrading")
 
-        # 7. RENDER BRIEFING (terstruktur + teks)
+        # 8. RENDER BRIEFING
         sections = [
             {"key": "marcus",   "name": "PROF. MARCUS",     "role": "Makro",       "text": marcus_txt},
             {"key": "rafael",   "name": "RAFAEL",           "role": "Teknikal",    "text": raf.get("text", "")},
@@ -186,9 +200,11 @@ class Orchestrator:
             {"key": "eleanor",  "name": "MADAME ELEANOR",   "role": "Risk",        "text": f"{eleanor_txt}\n{fill_info}"},
             {"key": "grace",    "name": "DR. GRACE",        "role": "Psikologi",   "text": grace_txt},
         ]
+        screen_txt = "\n".join(f"  {r['symbol']}: skor {r['score']} | RSI {r['rsi']} | {r['side_bias']}" for r in top)
         briefing_text = (
             f"┌─ 📋 TRADING DESK BRIEFING — {now} ─┐\n"
-            f"│ ASSET: {symbol} | TF: {tf} | BIAS: {bias} | MODE: {self.s.get('mode')}\n\n"
+            f"│ TOP SETUP: {symbol} | TF: {tf} | BIAS: {bias} | MODE: {self.s.get('mode')}\n"
+            f"│ Screener top-{len(top)}:\n{screen_txt}\n\n"
             + "\n\n".join(f"🔷 {s['name']} ({s['role']})\n   → {s['text']}" for s in sections)
             + f"\n\n└─ ⚠️ DISCLAIMER: Bukan nasihat keuangan. ─┘"
         )
@@ -203,6 +219,7 @@ class Orchestrator:
             "equity": round(self.state.get("equity", 0), 2),
             "realized_pnl": round(self.state.get("realized_pnl", 0), 2),
             "open_positions": len(self.state.get("positions", [])),
+            "screener": top,
             "halted": self.breaker.halted,
             "sections": sections,
             "briefing_text": briefing_text,
