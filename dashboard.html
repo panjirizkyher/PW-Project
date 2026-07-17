@@ -3,134 +3,225 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PEWE Trading Desk — LIVE</title>
+<title>PEWE Trading Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0e17; --panel:#121826; --panel2:#1a2233; --line:#243044;
-    --txt:#e6edf3; --muted:#8b98ac; --accent:#3fb6ff;
-    --marcus:#7c5cff; --rafael:#2ec4b6; --naka:#f4a261;
-    --eleanor:#ff5d73; --grace:#9d7bff; --kodok:#34d399;
+    --bg:#070b14; --bg2:#0b1220; --surface:rgba(17,25,40,.55); --surface2:rgba(22,32,52,.7);
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --txt:#eaf0f7; --muted:#8a98ad; --dim:#5b677d;
+    --marcus:#06b6d4; --rafael:#3b82f6; --naka:#f59e0b; --kodok:#10b981; --eleanor:#f43f5e; --grace:#8b5cf6;
+    --buy:#22c55e; --sell:#ef4444; --hold:#94a3b8; --warn:#f59e0b;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:radial-gradient(1200px 600px at 70% -10%,#16203a 0%,var(--bg) 60%);
-    color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:24px}
-  h1{font-size:22px;letter-spacing:1px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  h1 .badge{font-size:11px;background:var(--accent);color:#04121f;padding:3px 8px;border-radius:20px;font-weight:700}
-  .sub{color:var(--muted);font-size:13px;margin:4px 0 18px}
-  .meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:16px}
-  .meta b{color:var(--txt)}
-  .dot-live{width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block;box-shadow:0 0 8px #34d399}
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:980px}
-  .card{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid var(--line);
-    border-radius:14px;padding:14px;position:relative;overflow:hidden;transition:.3s;opacity:.35}
-  .card.on{opacity:1;border-color:var(--c);box-shadow:0 0 18px -4px var(--c)}
-  .card .dot{width:10px;height:10px;border-radius:50%;background:var(--c);position:absolute;top:14px;right:14px;opacity:.25}
-  .card.on .dot{opacity:1;box-shadow:0 0 10px var(--c)}
-  .ava{font-size:26px}
-  .nm{font-weight:700;margin-top:6px}
-  .rl{color:var(--muted);font-size:12px;margin-top:2px}
-  .tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;background:#0c1422;border:1px solid var(--line);color:var(--c);margin-top:8px}
-  .brief{background:#070b12;border:1px solid var(--line);border-radius:14px;padding:18px;max-width:980px;
-    font-family:'Consolas',monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;min-height:200px;margin-top:18px}
-  .brief .m{color:var(--marcus)} .brief .r{color:var(--rafael)} .brief .n{color:var(--naka)}
-  .brief .e{color:var(--eleanor)} .brief .g{color:var(--grace)} .brief .k{color:var(--kodok)}
-  .legend{color:var(--muted);font-size:11px;margin-top:10px}
-  .status{font-size:12px;color:var(--muted);margin-top:6px}
-  .status.err{color:var(--eleanor)}
+  html,body{height:100%}
+  body{
+    font-family:'Inter',system-ui,sans-serif; background:
+      radial-gradient(1200px 700px at 85% -10%,#16233f 0%,transparent 55%),
+      radial-gradient(900px 600px at 5% 110%,#1a1330 0%,transparent 50%),
+      var(--bg);
+    color:var(--txt); min-height:100vh; padding:18px 22px 40px;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit}
+  /* ===== HEADER ===== */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;
+    background:linear-gradient(135deg,#0ea5e9,#8b5cf6);box-shadow:0 0 28px -6px #0ea5e9}
+  .brand h1{font-size:21px;font-weight:800;letter-spacing:.5px;line-height:1.1}
+  .brand .sub{font-size:11px;color:var(--muted);font-weight:500;margin-top:2px}
+  .live{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--buy)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--buy);box-shadow:0 0 10px var(--buy);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  /* ===== CONTROL BAR ===== */
+  .ctrl{position:sticky;top:0;z-index:20;display:flex;gap:10px;flex-wrap:wrap;
+    background:rgba(7,11,20,.72);backdrop-filter:blur(12px);border:1px solid var(--line);
+    border-radius:14px;padding:12px 16px;margin-bottom:16px}
+  .stat{display:flex;flex-direction:column;gap:2px;min-width:78px;padding-right:10px;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:none}
+  .stat .k{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
+  .stat .v{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--txt)}
+  .stat .v.buy{color:var(--buy)} .stat .v.sell{color:var(--sell)} .stat .v.hold{color:var(--hold)}
+  .stat .v.pos{color:var(--buy)} .stat .v.neg{color:var(--sell)}
+  /* ===== CONSENSUS ===== */
+  .consensus{display:flex;align-items:center;gap:10px;margin-left:auto}
+  .meter{width:130px;height:9px;border-radius:6px;background:rgba(255,255,255,.07);overflow:hidden}
+  .meter>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--sell),#eab308,var(--buy));transition:width .6s}
+  .ctxt{font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace}
+  /* ===== AGENT GRID ===== */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+  @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:600px){.grid{grid-template-columns:1fr}}
+  .card{position:relative;background:var(--surface);backdrop-filter:blur(12px);
+    border:1px solid var(--line);border-radius:16px;padding:14px 14px 12px;overflow:hidden;
+    transition:.35s;opacity:.4}
+  .card:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--c);opacity:.5}
+  .card.on{opacity:1;border-color:color-mix(in srgb,var(--c) 55%,transparent);
+    box-shadow:0 0 38px -12px var(--c),inset 0 0 0 1px color-mix(in srgb,var(--c) 18%,transparent)}
+  .card .head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .ava{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:19px;
+    background:color-mix(in srgb,var(--c) 16%,#0b1220);box-shadow:0 0 18px -6px var(--c)}
+  .nm{font-weight:700;font-size:14.5px;line-height:1.15}
+  .rl{font-size:11px;color:var(--muted);font-weight:500}
+  .sdot{margin-left:auto;width:9px;height:9px;border-radius:50%;background:var(--c);opacity:.2;box-shadow:0 0 8px var(--c)}
+  .card.on .sdot{opacity:1;animation:pulse 1.6s infinite}
+  .tag{display:inline-block;font-size:9.5px;font-weight:600;letter-spacing:.04em;padding:3px 8px;border-radius:20px;
+    background:color-mix(in srgb,var(--c) 12%,transparent);color:var(--c);border:1px solid color-mix(in srgb,var(--c) 30%,transparent);margin-top:8px}
+  .brief{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.55;color:var(--muted);
+    margin-top:10px;max-height:84px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+  .brief b{color:var(--txt)}
+  /* ===== PANELS ===== */
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:800px){.row{grid-template-columns:1fr}}
+  .panel{background:var(--surface);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+  .panel h3{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .panel h3:before{content:"";width:6px;height:6px;border-radius:2px;background:var(--rafael)}
+  /* screener list */
+  .scr{display:flex;flex-direction:column;gap:8px}
+  .scrrow{display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+  .scrrow .sym{font-weight:700;min-width:96px}
+  .scrrow .bars{flex:1;height:7px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden}
+  .scrrow .bars>i{display:block;height:100%;background:linear-gradient(90deg,#0ea5e9,#22c55e)}
+  .scrrow .sc{color:var(--muted);min-width:38px;text-align:right}
+  .scrrow .sb{font-weight:700;min-width:54px;text-align:right}
+  .sb.buy{color:var(--buy)} .sb.sell{color:var(--sell)} .sb.neutral{color:var(--hold)}
+  /* activity feed */
+  .feed{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;max-height:300px;overflow:auto;white-space:pre-wrap}
+  .feed .m{color:var(--marcus)} .feed .r{color:var(--rafael)} .feed .n{color:var(--naka)}
+  .feed .k{color:var(--kodok)} .feed .e{color:var(--eleanor)} .feed .g{color:var(--grace)}
+  .feed .t{color:var(--dim)}
+  .foot{color:var(--dim);font-size:10.5px;margin-top:18px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .spinner{font-size:11px;color:var(--dim)}
 </style>
 </head>
 <body>
-  <h1>🏢 PEWE TRADING DESK <span class="badge">LIVE</span> <span class="dot-live"></span></h1>
-  <div class="sub">6 spesialis bekerja berurutan. Data dari <code>logs/briefing.json</code> (dihasilkan orchestrator). Auto-refresh tiap 60s.</div>
-
-  <div class="meta" id="meta">
-    <span>ASSET: <b id="m-asset">—</b></span>
-    <span>TF: <b id="m-tf">—</b></span>
-    <span>BIAS: <b id="m-bias">—</b></span>
-    <span>MODE: <b id="m-mode">—</b></span>
-    <span>ACTION: <b id="m-act">—</b></span>
-    <span>EQUITY: <b id="m-eq">—</b></span>
-    <span>PnL: <b id="m-pnl">—</b></span>
-    <span>OPEN: <b id="m-open">—</b></span>
-    <span>SIGNAL: <b id="m-sig">—</b></span>
-    <span>WAKTU: <b id="m-time">—</b></span>
+  <div class="top">
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div>
+        <h1>PEWE TRADING DESK</h1>
+        <div class="sub">Multi-Agent Autonomous System · 6 Specialists · Auto-refresh 60s</div>
+      </div>
+    </div>
+    <div class="live"><span class="dot"></span> LIVE <span id="clock" style="color:var(--muted);font-weight:500"></span></div>
   </div>
 
-  <div class="grid">
-    <div class="card" style="--c:var(--marcus)"><span class="dot"></span><div class="ava">🎓</div><div class="nm">Prof. Marcus</div><div class="rl">Chief Analyst · Makro</div><div class="tag">FOMC · NFP · CPI</div></div>
-    <div class="card" style="--c:var(--rafael)"><span class="dot"></span><div class="ava">📈</div><div class="nm">Rafael</div><div class="rl">Technical Trader</div><div class="tag">Price Action</div></div>
-    <div class="card" style="--c:var(--naka)"><span class="dot"></span><div class="ava">₿</div><div class="nm">Nakamoto X</div><div class="rl">Crypto Specialist</div><div class="tag">On-chain · F&G</div></div>
-    <div class="card" style="--c:var(--kodok)"><span class="dot"></span><div class="ava">🐸</div><div class="nm">Kodok</div><div class="rl">Execution & Coding</div><div class="tag">RSI · Pine/Python</div></div>
-    <div class="card" style="--c:var(--eleanor)"><span class="dot"></span><div class="ava">🛡️</div><div class="nm">Madame Eleanor</div><div class="rl">Risk Manager</div><div class="tag">R:R ≥ 1:2 · 1%</div></div>
-    <div class="card" style="--c:var(--grace)"><span class="dot"></span><div class="ava">🧠</div><div class="nm">Dr. Grace</div><div class="rl">Trading Psychologist</div><div class="tag">Bias · Mindfulness</div></div>
+  <div class="ctrl" id="ctrl">
+    <div class="stat"><span class="k">Asset</span><span class="v" id="m-asset">—</span></div>
+    <div class="stat"><span class="k">TF</span><span class="v" id="m-tf">—</span></div>
+    <div class="stat"><span class="k">Bias</span><span class="v" id="m-bias">—</span></div>
+    <div class="stat"><span class="k">Mode</span><span class="v" id="m-mode">—</span></div>
+    <div class="stat"><span class="k">Action</span><span class="v" id="m-action">—</span></div>
+    <div class="stat"><span class="k">Equity</span><span class="v" id="m-equity">—</span></div>
+    <div class="stat"><span class="k">PnL</span><span class="v" id="m-pnl">—</span></div>
+    <div class="stat"><span class="k">Open</span><span class="v" id="m-open">—</span></div>
+    <div class="stat"><span class="k">Signal</span><span class="v" id="m-signal">—</span></div>
+    <div class="consensus">
+      <span class="ctxt" id="m-cons">HOLD</span>
+      <div class="meter"><i id="m-consmeter"></i></div>
+    </div>
   </div>
 
-  <div class="brief" id="brief">// Menunggu data dari orchestrator...\n// Jalankan: python serve.py (atau --once)</div>
-  <div class="status" id="status">● menunggu briefing.json</div>
-  <div class="legend">Visual ini membaca output nyata orchestrator (paper mode). Bukan nasihat keuangan.</div>
+  <div class="grid" id="grid"></div>
+
+  <div class="row">
+    <div class="panel">
+      <h3>Screener · Top Setups</h3>
+      <div class="scr" id="scr"><span class="spinner">menunggu data…</span></div>
+    </div>
+    <div class="panel">
+      <h3>Agent Activity Feed</h3>
+      <div class="feed" id="feed"><span class="spinner">// menunggu briefing.json…</span></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>⚠️ DISCLAIMER: Bukan nasihat keuangan. Mode aktif: <b id="f-mode">—</b></span>
+    <span id="f-time">—</span>
+  </div>
 
 <script>
-const COLORS={marcus:'m',rafael:'r',naka:'n',kodok:'k',eleanor:'e',grace:'g'};
-const cardMap={};
-document.querySelectorAll('.card').forEach((c,i)=>{
-  // urutan sesuai alur: marcus, rafael, naka, kodok, eleanor, grace
-  const order=['marcus','rafael','naka','kodok','eleanor','grace'];
-  cardMap[order[i]]=c;
+const AGENTS=[
+  {key:'marcus',nm:'PROF. MARCUS',rl:'Chief Analyst · Makro',ava:'🎓',c:'var(--marcus)',tag:'FOMC · NFP · CPI'},
+  {key:'rafael',nm:'RAFAEL',rl:'Technical Trader',ava:'📈',c:'var(--rafael)',tag:'Price Action'},
+  {key:'naka',nm:'NAKAMOTO X',rl:'Crypto Specialist',ava:'₿',c:'var(--naka)',tag:'On-chain · F&G'},
+  {key:'kodok',nm:'KODOK',rl:'Execution & Coding',ava:'🐸',c:'var(--kodok)',tag:'RSI · Pine/Python'},
+  {key:'eleanor',nm:'MADAME ELEANOR',rl:'Risk Manager',ava:'🛡️',c:'var(--eleanor)',tag:'R:R ≥ 1:2 · 1%'},
+  {key:'grace',nm:'DR. GRACE',rl:'Trading Psychologist',ava:'🧠',c:'var(--grace)',tag:'Bias · Mindfulness'},
+];
+const COL={marcus:'m',rafael:'r',naka:'n',kodok:'k',eleanor:'e',grace:'g'};
+const grid=document.getElementById('grid');
+const cardEls={};
+AGENTS.forEach(a=>{
+  const el=document.createElement('div');el.className='card';el.style.setProperty('--c',a.c);
+  el.innerHTML=`<div class="head"><div class="ava">${a.ava}</div><div><div class="nm">${a.nm}</div><div class="rl">${a.rl}</div></div><div class="sdot"></div></div><span class="tag">${a.tag}</span><div class="brief" id="b-${a.key}">—</div>`;
+  grid.appendChild(el);cardEls[a.key]=el;
 });
 
-function render(data){
-  // meta
-  document.getElementById('m-asset').textContent=data.asset||'—';
-  document.getElementById('m-tf').textContent=data.timeframe||'—';
-  document.getElementById('m-bias').textContent=data.bias||'—';
-  document.getElementById('m-mode').textContent=data.mode||'—';
-  document.getElementById('m-act').textContent=(data.action||'hold').toUpperCase();
-  document.getElementById('m-eq').textContent=(data.equity!=null?'$'+data.equity:'—');
-  document.getElementById('m-pnl').textContent=(data.realized_pnl!=null?(data.realized_pnl>=0?'+':'')+'$'+data.realized_pnl:'—');
-  document.getElementById('m-open').textContent=data.open_positions||0;
-  const sig=data.signal||{};
-  document.getElementById('m-sig').textContent=(sig.side||'hold').toUpperCase();
-  document.getElementById('m-time').textContent=data.timestamp||'—';
+function cls(v){return v>0?'pos':(v<0?'neg':'');}
+function actCls(a){a=a.toUpperCase();return a==='BUY'?'buy':a==='SELL'?'sell':'hold';}
 
-  const brief=document.getElementById('brief');
-  brief.innerHTML='';
-  const secs=data.sections||[];
-  let i=0;
-  function step(){
-    if(i>=secs.length){
-      const d=document.createElement('div'); d.style.color='var(--muted)';
-      d.textContent='\n└─ ⚠️ DISCLAIMER: Bukan nasihat keuangan ─┘';
-      brief.appendChild(d);
-      document.getElementById('status').textContent='● briefing terakhir: '+ (data.timestamp||'');
-      return;
-    }
-    const s=secs[i];
-    const card=cardMap[s.key];
-    if(card) card.classList.add('on');
-    const wrap=document.createElement('div'); wrap.className=COLORS[s.key]||'';
-    wrap.textContent=`🔷 ${s.name} (${s.role})\n   → ${s.text}\n\n`;
-    brief.appendChild(wrap);
-    brief.scrollTop=brief.scrollHeight;
-    i++; setTimeout(step, 650);
-  }
-  step();
-}
+async function load(){
+  let d;
+  try{ d=await (await fetch('logs/briefing.json?t='+Date.now())).json(); }
+  catch(e){ return; }
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('m-asset',d.asset||'—'); set('m-tf',d.timeframe||'—');
+  const bias=(d.bias||'—').toUpperCase();
+  set('m-bias',bias);
+  const be=document.getElementById('m-bias'); if(be){be.className='v '+(bias==='BULLISH'?'buy':bias==='BEARISH'?'sell':'hold');}
+  set('m-mode',d.mode||'—');
+  const act=d.action||'hold'; set('m-action',act.toUpperCase());
+  document.getElementById('m-action').className='v '+actCls(act);
+  const eq=d.equity??0; set('m-equity','$'+Number(eq).toLocaleString());
+  const pnl=d.realized_pnl||0; const pe=document.getElementById('m-pnl');
+  pe.textContent=(pnl>=0?'+':'')+'$'+Number(pnl).toFixed(2); pe.className='v '+cls(pnl);
+  set('m-open',d.open_positions??0);
+  const sig=d.signal&&d.signal.side?d.signal.side:'hold';
+  const se=document.getElementById('m-signal'); se.textContent=sig.toUpperCase(); se.className='v '+actCls(sig);
+  set('f-mode',d.mode||'—'); set('f-time',d.timestamp||'—');
 
-async function poll(){
-  try{
-    const r=await fetch('logs/briefing.json?t='+Date.now());
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const data=await r.json();
-    render(data);
-    document.getElementById('status').classList.remove('err');
-  }catch(e){
-    const st=document.getElementById('status');
-    st.textContent='● menunggu briefing.json ('+e.message+')';
-    st.classList.add('err');
-  }
+  // consensus meter dari action
+  const m=document.getElementById('m-consmeter'); const ct=document.getElementById('m-cons');
+  if(act==='entry'||sig==='buy'){m.style.width='100%';ct.textContent='BUY';ct.style.color='var(--buy)';}
+  else if(sig==='sell'){m.style.width='0%';ct.textContent='SELL';ct.style.color='var(--sell)';}
+  else {m.style.width='50%';ct.textContent='HOLD';ct.style.color='var(--hold)';}
+
+  // agent briefing
+  (d.sections||[]).forEach(s=>{
+    const b=document.getElementById('b-'+s.key); if(b) b.textContent=(s.text||'').slice(0,400);
+    if(cardEls[s.key]) cardEls[s.key].classList.add('on');
+  });
+  (d.sections||[]).forEach(s=>{ // matikan yang tdk ada
+    if(!d.sections.find(x=>x.key===s.key) && cardEls[s.key]) cardEls[s.key].classList.remove('on');
+  });
+
+  // screener
+  const scr=document.getElementById('scr');
+  if(d.screener&&d.screener.length){
+    scr.innerHTML='';
+    d.screener.forEach(r=>{
+      const row=document.createElement('div');row.className='scrrow';
+      const sb=r.side_bias||'neutral';
+      row.innerHTML=`<span class="sym">${r.symbol}</span><div class="bars"><i style="width:${Math.max(6,r.score)}%"></i></div><span class="sc">${r.score}</span><span class="sb ${sb}">${sb.toUpperCase()}</span>`;
+      scr.appendChild(row);
+    });
+  } else { scr.innerHTML='<span class="spinner">tidak ada setup</span>'; }
+
+  // feed
+  const feed=document.getElementById('feed');
+  feed.innerHTML='';
+  (d.sections||[]).forEach(s=>{
+    const w=document.createElement('div'); w.className=COL[s.key]||'';
+    const time=d.timestamp||'';
+    w.textContent=`[${time}] ${s.name} (${s.role})\n  → ${(s.text||'').slice(0,300)}\n`;
+    feed.appendChild(w);
+  });
 }
-poll();
-setInterval(poll, 60000);
+async function tick(){await load();document.getElementById('clock').textContent=new Date().toLocaleTimeString();}
+tick(); setInterval(tick,60000);
 </script>
 </body>
 </html>
