@@ -190,6 +190,15 @@ class Orchestrator:
 
         save_state(self.state)
 
+        # equity curve point (pantau PnL)
+        try:
+            import time
+            from core.equity import record as eq_record
+            eq_record(self.state.get("equity", 0), self.state.get("realized_pnl", 0),
+                      len(self.state.get("positions", [])), int(time.time()))
+        except Exception:
+            pass
+
         # 7. GRACE (psikologi)
         grace_txt = self.grace.reflect("FOMO" if sig.get("conviction", 0) > 0.8 else "fear/overtrading")
 

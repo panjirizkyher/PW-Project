@@ -124,6 +124,7 @@ class Handler(SimpleHTTPRequestHandler):
 def price_feed(orch: Orchestrator, interval: int):
     """Poll harga tiap interval detik -> logs/tick.json (realtime feel)."""
     print(f"[SERVE] price-feed — tiap {interval}s")
+    from core.equity import record as eq_record
     while True:
         try:
             syms = []
@@ -154,6 +155,13 @@ def price_feed(orch: Orchestrator, interval: int):
                             m[sym]["ohlc"][-1][4] = p      # close terakhir
                             m[sym]["last"] = p
                     _j.dump(m, open(mp, "w"), ensure_ascii=False)
+            except Exception:
+                pass
+            # equity point tiap tick (pantau PnL realtime)
+            try:
+                st = orch.state
+                eq_record(st.get("equity", 0), st.get("realized_pnl", 0),
+                          len(st.get("positions", [])), int(time.time()))
             except Exception:
                 pass
         except Exception:

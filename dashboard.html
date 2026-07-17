@@ -131,6 +131,15 @@
   .btn:active{transform:translateY(1px)}
   .saved{font-size:11px;color:var(--buy);font-weight:600;margin-left:auto;opacity:0;transition:.3s}
   .saved.show{opacity:1}
+  /* ===== EQUITY CURVE ===== */
+  .eq{background:var(--surface);backdrop-filter:blur(12px);border:1px solid var(--line);
+    border-radius:16px;padding:16px 18px;margin-bottom:18px}
+  .eq h3{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+  .eq .statx{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px}
+  .eq .statx .x{display:flex;flex-direction:column}
+  .eq .statx .x .k{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+  .eq .statx .x .v{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700}
+  .eq canvas{width:100%;height:140px;display:block}
   .spinner{font-size:11px;color:var(--dim)}
 </style>
 </head>
@@ -171,6 +180,17 @@
       <button class="btn" id="btn-save">Simpan & Terapkan</button>
       <button class="btn ghost" id="btn-run">▶ Jalankan Siklus Sekarang</button>
     </div>
+  </div>
+
+  <div class="eq">
+    <h3>📈 Equity Curve & PnL <span id="eq-mode" class="ctxt" style="color:var(--dim);font-size:11px"></span></h3>
+    <div class="statx">
+      <div class="x"><span class="k">Equity</span><span class="v" id="eq-eq">—</span></div>
+      <div class="x"><span class="k">Realized PnL</span><span class="v" id="eq-pnl">—</span></div>
+      <div class="x"><span class="k">Peak</span><span class="v" id="eq-peak">—</span></div>
+      <div class="x"><span class="k">Max DD</span><span class="v" id="eq-dd">—</span></div>
+    </div>
+    <canvas id="eq-canvas"></canvas>
   </div>
 
   <div class="grid" id="grid"></div>
@@ -327,28 +347,81 @@ async function loadMarkets(){
 
 async function loadAccount(){
   let a;
-  try{ a=await (await fetch('logs/account.json?t='+Date.now())).json(); }
-  catch(e){ return; }
-  const box=document.getElementById('acct');
-  if(a.error){ box.innerHTML=`<div class="empty">error: ${a.error}</div>`; return; }
-  let h=`<div class="row"><span>MODE</span><b>${a.mode.toUpperCase()}</b></div>`;
-  h+=`<div class="row"><span>Balance USDT</span><b>$${(a.balance||0).toFixed(2)}</b></div>`;
-  h+=`<div class="row"><span>Equity</span><b>$${(a.equity||0).toFixed(2)}</b></div>`;
-  h+=`<div class="row"><span>Open Orders</span><b>${a.open_orders?a.open_orders.length:0}</b></div>`;
-  box.innerHTML=h;
-  if(a.open_orders&&a.open_orders.length){
-    box.innerHTML+='<div style="margin-top:8px;color:var(--dim);font-size:10px">OPEN ORDERS</div>';
-    a.open_orders.forEach(o=>{ box.innerHTML+=`<div class="trade ${o.side}"><span>${o.symbol}</span><span>${o.side.toUpperCase()} ${o.amount}</span></div>`; });
+    try{ a=await (await fetch('logs/account.json?t='+Date.now())).json(); }catch(e){ return; }
+    const box=document.getElementById('acct');
+    if(a.error){ box.innerHTML=`<div class="empty">error: ${a.error}</div>`; return; }
+    let h=`<div class="row"><span>MODE</span><b>${a.mode.toUpperCase()}</b></div>`;
+    h+=`<div class="row"><span>Balance USDT</span><b>$${(a.balance||0).toFixed(2)}</b></div>`;
+    h+=`<div class="row"><span>Equity</span><b>$${(a.equity||0).toFixed(2)}</b></div>`;
+    h+=`<div class="row"><span>Open Orders</span><b>${a.open_orders?a.open_orders.length:0}</b></div>`;
+    box.innerHTML=h;
+    if(a.open_orders&&a.open_orders.length){
+      box.innerHTML+='<div style="margin-top:8px;color:var(--dim);font-size:10px">OPEN ORDERS</div>';
+      a.open_orders.forEach(o=>{ box.innerHTML+=`<div class="trade ${o.side}"><span>${o.symbol}</span><span>${o.side.toUpperCase()} ${o.amount}</span></div>`; });
+    }
+    if(a.trades&&a.trades.length){
+      box.innerHTML+='<div style="margin-top:8px;color:var(--dim);font-size:10px">RECENT TRADES (akun demo)</div>';
+      a.trades.forEach(t=>{ box.innerHTML+=`<div class="trade ${t.side}"><span>${t.symbol}</span><span>${t.side.toUpperCase()} ${t.amount} @ ${t.price}</span></div>`; });
+    } else {
+      box.innerHTML+='<div class="empty" style="margin-top:8px">belum ada trade di akun demo</div>';
+    }
+    // equity stats dari account
+    drawEquity();
   }
-  if(a.trades&&a.trades.length){
-    box.innerHTML+='<div style="margin-top:8px;color:var(--dim);font-size:10px">RECENT TRADES (akun demo)</div>';
-    a.trades.forEach(t=>{ box.innerHTML+=`<div class="trade ${t.side}"><span>${t.symbol}</span><span>${t.side.toUpperCase()} ${t.amount} @ ${t.price}</span></div>`; });
-  } else {
-    box.innerHTML+='<div class="empty" style="margin-top:8px">belum ada trade di akun demo</div>';
-  }
-}
 
-async function tick(){await load();document.getElementById('clock').textContent=new Date().toLocaleTimeString();}
+  function drawEquity(){
+    let arr;
+    try{ arr=JSON.parse(sessionStorage.getItem('eq_cache')||'null'); }catch(e){ arr=null; }
+    if(!arr||!arr.length){ return; }
+    const st=window.__eq_stats__||{};
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    set('eq-eq', '$'+(arr[arr.length-1].equity).toLocaleString());
+    set('eq-pnl', (st.pnl>=0?'+':'')+'$'+Number(st.pnl||0).toFixed(2));
+    const pe=document.getElementById('eq-pnl'); if(pe)pe.style.color=st.pnl>=0?'var(--buy)':'var(--sell)';
+    set('eq-peak','$'+(st.peak||0).toLocaleString());
+    set('eq-dd', '$'+(st.max_dd||0).toFixed(2));
+    const dd=document.getElementById('eq-dd'); if(dd)dd.style.color='var(--sell)';
+    // chart
+    const cv=document.getElementById('eq-canvas'); if(!cv) return;
+    const ctx=cv.getContext('2d');
+    const W=Math.max(1,(cv.clientWidth||600))*window.devicePixelRatio;
+    const H=140*window.devicePixelRatio; cv.width=W; cv.height=H;
+    ctx.clearRect(0,0,W,H);
+    const eq=arr.map(p=>p.equity);
+    let lo=Math.min(...eq), hi=Math.max(...eq); const pad=(hi-lo)*0.1||1; lo-=pad; hi+=pad;
+    const n=arr.length; const cw=W/n;
+    // area
+    ctx.beginPath();
+    for(let i=0;i<n;i++){
+      const x=i*cw+cw/2; const y=H-((eq[i]-lo)/(hi-lo))*H;
+      if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.lineTo((n-1)*cw+cw/2,H); ctx.lineTo(cw/2,H); ctx.closePath();
+    const grad=ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'rgba(34,197,94,.35)'); grad.addColorStop(1,'rgba(34,197,94,0)');
+    ctx.fillStyle=grad; ctx.fill();
+    // line
+    ctx.beginPath();
+    for(let i=0;i<n;i++){
+      const x=i*cw+cw/2; const y=H-((eq[i]-lo)/(hi-lo))*H;
+      if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle='#22c55e'; ctx.lineWidth=2*window.devicePixelRatio; ctx.stroke();
+  }
+
+  async function loadEquity(){
+    let arr;
+    try{ arr=await (await fetch('logs/equity.json?t='+Date.now())).json(); }catch(e){ return; }
+    if(!arr||!arr.length) return;
+    sessionStorage.setItem('eq_cache', JSON.stringify(arr));
+    // hitung stats (inline supaya tdk import)
+    const eq=arr.map(p=>p.equity); let peak=Math.max(...eq); let dd=0,run=eq[0];
+    for(const v of eq){ run=Math.max(run,v); dd=Math.min(dd,v-run); }
+    window.__eq_stats__={pnl:eq[eq.length-1]-eq[0], peak, max_dd:dd};
+    drawEquity();
+  }
+
+  async function tick(){await load();document.getElementById('clock').textContent=new Date().toLocaleTimeString();}
 
 // ===== REALTIME TICK (harga per-detik) =====
 const tickPrev = {};
@@ -428,10 +501,11 @@ document.getElementById('btn-run').addEventListener('click',async ()=>{
   const b=document.getElementById('btn-run');const t=b.textContent;b.textContent='⏳…';setTimeout(()=>b.textContent=t,2500);
 });
 
-// jadwal: briefing 60s, tick realtime 4s, controls 30s
+// jadwal: briefing 60s, tick realtime 4s, controls 30s, equity 10s
 tick(); setInterval(tick,60000);
 loadTick(); setInterval(loadTick,4000);
 loadControls(); setInterval(loadControls,30000);
+loadEquity(); setInterval(loadEquity,10000);
 </script>
 </body>
 </html>

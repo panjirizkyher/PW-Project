@@ -11,3 +11,4 @@ logs/backtest_report.json
 logs/market.json
 logs/account.json
 logs/tick.json
+logs/equity.json
