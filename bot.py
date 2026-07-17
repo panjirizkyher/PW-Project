@@ -1,9 +1,9 @@
 """
 SERVE — jalankan Trading Desk + dashboard live lokal.
 Usage:
-  python serve.py            # loop (tiap run_every_minutes) + price-feed + HTTP :8000
-  python serve.py --once     # jalan 1x lalu serve (test cepat)
-Buka browser: http://localhost:8000/dashboard.html
+  python bot.py            # loop (tiap run_every_minutes) + price-feed + HTTP :8001
+  python bot.py --once     # jalan 1x lalu serve (test cepat)
+Buka browser: http://localhost:8001/dashboard.html
 
 Endpoint tambahan:
   GET  /logs/tick.json        -> harga terbaru tiap token (price-feed, realtime)
@@ -79,10 +79,31 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _ensure_settings(self):
+        """Fallback: kalau Handler.settings None (mis. re-exec uv), load langsung.
+        Pakai path ABSOLUT supaya cwd berubah (uv re-exec) tdk bikin gagal."""
+        if Handler.settings is None:
+            try:
+                import os as _os
+                _p = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                   "config", "settings.yaml")
+                if not _os.path.exists(_p):
+                    _p = "config/settings.yaml"
+                Handler.settings = load_settings(_p)
+            except Exception as _e:
+                # debug: tulis kenapa gagal biar bisa diagnosa di child uv
+                try:
+                    with open("logs/bot_debug.log", "a", encoding="utf-8") as _f:
+                        _f.write(f"[ensure_settings FAIL] {type(_e).__name__}: {_e}\n")
+                except Exception:
+                    pass
+                Handler.settings = {}
+
     def do_OPTIONS(self):
         self._send(204, {})
 
     def do_GET(self):
+        self._ensure_settings()
         if self.path.startswith("/api/"):
             if not self._auth_ok():
                 self._send(401, {"ok": False, "error": "unauthorized"})
@@ -113,6 +134,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        self._ensure_settings()
         if self.path.startswith("/api/"):
             if not self._auth_ok():
                 self._send(401, {"ok": False, "error": "unauthorized"})
@@ -217,9 +239,14 @@ def main():
     mock = "--mock" in sys.argv
     orch = Orchestrator(settings, mock=mock)
     interval = int(settings.get("schedule", {}).get("run_every_minutes", 60)) * 60
-    port = int(settings.get("dashboard", {}).get("port", 8000))
+    port = int(os.getenv("PEWE_PORT") or settings.get("dashboard", {}).get("port", 8000))
     Handler.orch = orch
     Handler.settings = settings
+    try:
+        with open("logs/bot_debug.log", "a", encoding="utf-8") as _f:
+            _f.write(f"[main] settings loaded, mode={settings.get('mode')} keys={list(settings.keys())}\n")
+    except Exception:
+        pass
 
     if "--once" in sys.argv:
         orch.run()

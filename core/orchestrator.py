@@ -79,7 +79,7 @@ class Orchestrator:
     def run_structured(self) -> dict:
         """Sama seperti run(), tapi kembalikan dict terstruktur + tulis briefing.json.
         Multi-symbol: scan N token via screener, eksekusi HANYA yang skor tertinggi
-        & sinyal valid (presisi).
+        & sinyal valid (presisi) — SEKARANG: semua top-N yang valid (high-throughput).
         """
         ex = self.s.get("exchange", {})
         tf = ex.get("timeframe", "1h")
@@ -90,41 +90,53 @@ class Orchestrator:
             send(msg, self.s)
             return msg
 
+        # 0. data makro/regim (Marcus) — sekali pakai buat modulate
+        macro = next_events()
+        if self.mock:
+            fg = {"value": 30, "classification": "Fear"}
+            btc_df = add_indicators(self.market.ohlcv("BTC/USDT", tf, 200)) if hasattr(self.market, "ohlcv") else None
+        else:
+            fg = fear_greed() if self.is_crypto else {}
+            btc_df = None
+            try:
+                btc_df = add_indicators(self.market.ohlcv("BTC/USDT", tf, 200))
+            except Exception:
+                btc_df = None
+        vol = None
+        if btc_df is not None and not btc_df.empty and "close" in btc_df.columns:
+            try:
+                vol = float(btc_df["close"].pct_change().tail(24).std() or 0.0)
+            except Exception:
+                vol = None
+        marcus = self.marcus.analyze(macro, fg, btc_df, vol)
+        marcus_txt = marcus.get("text", "") if isinstance(marcus, dict) else str(marcus)
+        regime = (marcus.get("regime", "neutral") if isinstance(marcus, dict) else "neutral")
+
         # 1. SCREENER — cari setup terbaik dari banyak token
-        top = screen(self.market, self.s, top_n=3, max_scan=50, mock=self.mock)
+        top = screen(self.market, self.s, top_n=8, max_scan=50, mock=self.mock)
         best = top[0] if top else None
         symbol = best["symbol"] if best else ex.get("symbol", "BTC/USDT")
 
-        # 2. DATA untuk token terpilih
+        # 2. DATA untuk token terpilih (utk briefing)
         if self.mock:
             from data.mock import mock_ohlcv
             df = add_indicators(mock_ohlcv(200))
             last = float(df.iloc[-1]["close"])
-            fg = {"value": 54, "classification": "Neutral"} if self.is_crypto else {}
         else:
             df = add_indicators(self.market.ohlcv(symbol, tf, 200))
             last = self.market.last_price(symbol)
-            fg = fear_greed() if self.is_crypto else {}
-        macro = next_events()
-
-        # 3. MARCUS (makro)
-        marcus_txt = self.marcus.analyze(macro, fg)
-
-        # 4. RAFAEL (teknikal)
         raf = self.rafael.analyze(df)
         bias = raf.get("bias", "n/a")
 
         # 5. NAKAMOTO (crypto)
         naka_txt = self.naka.analyze(fg) if self.is_crypto else "(bukan aset crypto — lewati)"
 
-        # 6. KODOK (sinyal deterministik) untuk token terpilih
-        sig = self.kodok.generate_signal(df, last) if (last and not df.empty) else {}
         eleanor_txt = ""
         fill_info = ""
         trade_action = "hold"
-
-        # === MANAJEMEN EXIT dulu (per posisi, pakai simbol masing-masing) ===
         exited_this_cycle = False
+
+        # === MANAJEMEN EXIT dulu (per posisi) ===
         for pos in list(self.state["positions"]):
             psym = pos["symbol"]
             if self.mock:
@@ -157,36 +169,55 @@ class Orchestrator:
                 self.state["equity"] += pnl
                 self.state["realized_pnl"] += pnl
                 self.state["positions"].remove(pos)
-                fill_info = f"EXIT {reason}: {exit_side} {pos['qty']:.6f} {psym} @ {fill.price:.2f} | PnL {pnl:+.2f}"
+                fill_info += f"\nEXIT {reason}: {exit_side} {pos['qty']:.6f} {psym} @ {fill.price:.2f} | PnL {pnl:+.2f}"
                 trade_action = f"exit_{reason.lower()}"
                 exited_this_cycle = True
                 self.breaker.check(self.risk.daily_loss_breached(self.state["realized_pnl"]))
 
-        # === ENTRY — cuma token skor tertinggi & sinyal valid ===
-        if not exited_this_cycle and best and sig and sig.get("side") in ("buy", "sell"):
-            t = ProposedTrade(symbol, sig["side"], sig["entry"],
+        # === ENTRY — SEMUA top-N yang sinyal valid & masih bisa buka ===
+        new_entries = 0
+        for r in top:
+            if new_entries >= 8:
+                break
+            if len(self.state["positions"]) >= self.risk.max_open:
+                break
+            sym = r["symbol"]
+            try:
+                if self.mock:
+                    sdf = add_indicators(mock_ohlcv(200, seed=hash(sym) % 1000))
+                else:
+                    sdf = add_indicators(self.market.ohlcv(sym, tf, 200))
+                    if sdf is None or sdf.empty:
+                        continue
+                slast = float(sdf.iloc[-1]["close"]) if self.mock else self.market.last_price(sym)
+            except Exception:
+                continue
+            sig = self.kodok.generate_signal(sdf, slast)
+            if not sig or sig.get("side") not in ("buy", "sell"):
+                continue
+            # jangan dobel di simbol yg sudah ada
+            if any(p["symbol"] == sym for p in self.state["positions"]):
+                continue
+            t = ProposedTrade(sym, sig["side"], sig["entry"],
                               sig["stop_loss"], sig["take_profit"], sig["conviction"])
             trade_ok, rr_msg = self.risk.validate(t)
             can_open, open_msg = self.risk.can_open_new(len(self.state["positions"]))
-            eleanor_txt = self.eleanor.comment(trade_ok and can_open, rr_msg,
-                                              len(self.state["positions"]), self.risk.max_open)
-            if trade_ok and can_open and not self.state["positions"]:
+            if trade_ok and can_open:
                 qty = self.risk.position_size(t)
-                fill = self.exec.execute(symbol, sig["side"], qty, sig["entry"])
+                if qty <= 0:
+                    continue
+                fill = self.exec.execute(sym, sig["side"], qty, sig["entry"])
                 self.state["positions"].append({
-                    "symbol": symbol, "side": sig["side"], "qty": qty,
+                    "symbol": sym, "side": sig["side"], "qty": qty,
                     "entry": fill.price, "stop_loss": sig["stop_loss"],
                     "take_profit": sig["take_profit"], "bars": 0,
                 })
-                fill_info = f"{'PAPER' if fill.paper else 'LIVE'} FILL: {sig['side']} {qty:.6f} {symbol} @ {fill.price:.2f}"
+                fill_info += f"\n{'PAPER' if fill.paper else 'LIVE'} FILL: {sig['side']} {qty:.6f} {sym} @ {fill.price:.2f} ({sig.get('strategy','?')})"
                 trade_action = "entry"
-        else:
-            if not eleanor_txt:
-                eleanor_txt = self.eleanor.comment(
-                    False, "Hold — tidak ada sinyal/setup terbaik.",
-                    len(self.state["positions"]), self.risk.max_open)
-            if not fill_info:
-                fill_info = "Sinyal: HOLD (RSI netral / tidak ada setup bagus)."
+                new_entries += 1
+
+        if not fill_info:
+            fill_info = "Sinyal: HOLD (RSI netral / tidak ada setup bagus)."
 
         save_state(self.state)
 
@@ -199,22 +230,34 @@ class Orchestrator:
         except Exception:
             pass
 
-        # 7. GRACE (psikologi)
-        grace_txt = self.grace.reflect("FOMO" if sig.get("conviction", 0) > 0.8 else "fear/overtrading")
+        # 7. GRACE (psikologi) — dari state NYATA
+        grace_txt = self.grace.reflect({
+            "realized_pnl": self.state.get("realized_pnl", 0.0),
+            "equity": self.state.get("equity", 0.0),
+            "balance": self.risk.balance,
+            "open_positions": len(self.state.get("positions", [])),
+            "max_open": self.risk.max_open,
+        })
 
         # 8. RENDER BRIEFING
+        # Marcus sekarang deterministik (skor regim)
+        eleanor_txt = self.eleanor.comment(
+            trade_action in ("entry",) or exited_this_cycle,
+            f"Regim: {regime.upper()}",
+            len(self.state["positions"]), self.risk.max_open) if not eleanor_txt else eleanor_txt
         sections = [
             {"key": "marcus",   "name": "PROF. MARCUS",     "role": "Makro",       "text": marcus_txt},
             {"key": "rafael",   "name": "RAFAEL",           "role": "Teknikal",    "text": raf.get("text", "")},
             {"key": "naka",     "name": "NAKAMOTO X",       "role": "Crypto",      "text": naka_txt},
-            {"key": "kodok",    "name": "KODOK",            "role": "Sinyal",      "text": str(sig) if sig else "HOLD"},
+            {"key": "kodok",    "name": "KODOK",            "role": "Sinyal",      "text": f"entries={new_entries} top_setup={symbol} strategy=rsi+breakout"},
             {"key": "eleanor",  "name": "MADAME ELEANOR",   "role": "Risk",        "text": f"{eleanor_txt}\n{fill_info}"},
             {"key": "grace",    "name": "DR. GRACE",        "role": "Psikologi",   "text": grace_txt},
         ]
         screen_txt = "\n".join(f"  {r['symbol']}: skor {r['score']} | RSI {r['rsi']} | {r['side_bias']}" for r in top)
         briefing_text = (
             f"┌─ 📋 TRADING DESK BRIEFING — {now} ─┐\n"
-            f"│ TOP SETUP: {symbol} | TF: {tf} | BIAS: {bias} | MODE: {self.s.get('mode')}\n"
+            f"│ TOP SETUP: {symbol} | TF: {tf} | BIAS: {bias} | MODE: {self.s.get('mode')} | REGIM: {regime.upper()}\n"
+            f"│ Open: {len(self.state['positions'])} | Equity: {self.state.get('equity',0):.2f} | PnL: {self.state.get('realized_pnl',0):+.2f}\n"
             f"│ Screener top-{len(top)}:\n{screen_txt}\n\n"
             + "\n\n".join(f"🔷 {s['name']} ({s['role']})\n   → {s['text']}" for s in sections)
             + f"\n\n└─ ⚠️ DISCLAIMER: Bukan nasihat keuangan. ─┘"
@@ -224,8 +267,9 @@ class Orchestrator:
             "asset": symbol,
             "timeframe": tf,
             "bias": bias,
+            "regime": regime,
             "mode": self.s.get("mode"),
-            "signal": sig or {"side": "hold"},
+            "signal": {"side": trade_action},
             "action": trade_action,
             "equity": round(self.state.get("equity", 0), 2),
             "realized_pnl": round(self.state.get("realized_pnl", 0), 2),

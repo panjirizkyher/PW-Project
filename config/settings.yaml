@@ -13,18 +13,19 @@ api_keys:
     secret_env: EXCHANGE_LIVE_SECRET
 risk:
   account_balance: 10000.0
-  risk_per_trade_pct: 1.0
-  max_daily_loss_pct: 3.0
+  risk_per_trade_pct: 2.0
+  max_daily_loss_pct: 8.0
   min_reward_risk_ratio: 2.0
-  max_open_positions: 3
-  max_total_exposure_pct: 10.0
+  max_open_positions: 8
+  max_total_exposure_pct: 40.0
   max_hold_bars: 48
 signal:
-  strategy: rsi_mean_reversion
+  strategy: rsi_mean_reversion_plus_breakout
   rsi_period: 14
-  rsi_oversold: 60.0
+  rsi_oversold: 55.0
   rsi_overbought: 70.0
   target_reward_risk_ratio: 2.5
+  breakout_bars: 20
 llm:
   base_url: https://inference.nousresearch.com/v1
   model: tencent/hy3:free
@@ -36,9 +37,9 @@ telegram:
   bot_token_env: TELEGRAM_BOT_TOKEN
   chat_id_env: TELEGRAM_CHAT_ID
 dashboard:
-  port: 8000
-  refresh_seconds: 4
+  port: 8731
+  refresh_seconds: 1
 price_feed:
   refresh_seconds: 5
 schedule:
-  run_every_minutes: 60
+  run_every_minutes: 5
