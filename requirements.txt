@@ -1,0 +1,19 @@
+# Trading Desk — Multi-Agent Autonomous Framework (Level C, paper-first)
+# Python 3.10+
+
+# Exchange data + (live) execution
+ccxt>=4.2.0
+
+# LLM persona layer (OpenAI-compatible; works with Nous/Hermes endpoint)
+openai>=1.30.0
+
+# Telegram alerts
+requests>=2.31.0
+
+# Config + utils
+pyyaml>=6.0
+pandas>=2.0.0
+numpy>=1.26.0
+
+# Scheduling (optional, for main loop)
+# schedule>=1.2.0   # uncomment if you want in-process cron instead of OS task

@@ -1,0 +1,7 @@
+# JANGAN commit file ini — berisi secret!
+config/.env
+.venv/
+__pycache__/
+*.pyc
+logs/audit.log
+logs/circuit_state.json
