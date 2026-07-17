@@ -462,9 +462,20 @@ const CFG=[
   {k:'risk.max_hold_bars',label:'Max Hold (bar)',min:6,max:200,step:1,fix:0},
   {k:'dashboard.refresh_seconds',label:'Refresh (dtk)',min:1,max:30,step:1,fix:0},
 ];
+// ===== AUTH (token dari URL ?t=xxx atau prompt 1x) =====
+function getTok(){
+  if(window.DTOK) return window.DTOK;
+  const u=new URLSearchParams(location.search).get('t');
+  let tk=u || localStorage.getItem('dtok') || '';
+  if(!tk){ tk=prompt('Masukkan Dashboard Token:'); if(tk) localStorage.setItem('dtok',tk); }
+  return tk;
+}
+const DTOK=getTok();
+function apiHdrs(){ return {'Content-Type':'application/json','X-Auth-Token':DTOK}; }
 async function loadControls(){
   let s;
-  try{ s=await (await fetch('/api/settings?t='+Date.now())).json(); }catch(e){ return; }
+  try{ s=await (await fetch('/api/settings?t='+Date.now(),{headers:apiHdrs()})).json(); }catch(e){ return; }
+  if(s.error==='unauthorized'){ document.getElementById('ctrls').innerHTML='<div class="empty">token salah — reload dengan ?t=TOKEN</div>'; return; }
   const box=document.getElementById('ctrls'); if(!box) return;
   const ed=s.editable||{};
   box.innerHTML='';
@@ -488,7 +499,7 @@ document.getElementById('btn-save').addEventListener('click',async ()=>{
     payload[inp.dataset.k]=parseFloat(inp.value);
   });
   try{
-    const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const r=await fetch('/api/settings',{method:'POST',headers:apiHdrs(),body:JSON.stringify(payload)});
     const j=await r.json();
     if(j.ok){
       const sv=document.getElementById('saved');sv.classList.add('show');
@@ -497,7 +508,7 @@ document.getElementById('btn-save').addEventListener('click',async ()=>{
   }catch(e){}
 });
 document.getElementById('btn-run').addEventListener('click',async ()=>{
-  try{ await fetch('/api/run',{method:'POST'}); }catch(e){}
+  try{ await fetch('/api/run',{method:'POST',headers:apiHdrs()}); }catch(e){}
   const b=document.getElementById('btn-run');const t=b.textContent;b.textContent='⏳…';setTimeout(()=>b.textContent=t,2500);
 });
 

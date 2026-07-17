@@ -61,13 +61,20 @@ class Handler(SimpleHTTPRequestHandler):
     settings = None
     lock = threading.Lock()
 
+    def _auth_ok(self) -> bool:
+        tok = os.getenv("DASHBOARD_TOKEN", "")
+        if not tok:
+            return True  # auth dimatikan (mode lokal)
+        sent = self.headers.get("X-Auth-Token", "")
+        return sent == tok
+
     def _send(self, code: int, obj):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -76,48 +83,73 @@ class Handler(SimpleHTTPRequestHandler):
         self._send(204, {})
 
     def do_GET(self):
-        if self.path.startswith("/api/settings"):
-            editable = {k: get_nested(Handler.settings, k) for k in EDITABLE}
-            self._send(200, {"editable": editable, "mode": Handler.settings.get("mode")})
+        if self.path.startswith("/api/"):
+            if not self._auth_ok():
+                self._send(401, {"ok": False, "error": "unauthorized"})
+                return
+            if self.path.startswith("/api/settings"):
+                editable = {k: get_nested(Handler.settings, k) for k in EDITABLE}
+                self._send(200, {"editable": editable, "mode": Handler.settings.get("mode")})
+                return
+            self._send(404, {"ok": False})
             return
-        if self.path.startswith("/logs/"):
-            return super().do_GET()
+        # inject token ke dashboard biar API jalan dari mana aja
+        if self.path in ("/dashboard.html", "/", ""):
+            tok = os.getenv("DASHBOARD_TOKEN", "")
+            if tok:
+                try:
+                    html = open("dashboard.html", "r", encoding="utf-8").read()
+                    if "?t=" not in self.path and "DASHBOARD_TOKEN_INJECT" not in html:
+                        html = html.replace("</head>",
+                            f"<script>window.DTOK='{tok}';</script></head>")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "text/html; charset=utf-8")
+                        self.send_header("Content-Length", str(len(html.encode("utf-8"))))
+                        self.end_headers()
+                        self.wfile.write(html.encode("utf-8"))
+                        return
+                except Exception:
+                    pass
         return super().do_GET()
 
     def do_POST(self):
-        if self.path.startswith("/api/settings"):
-            try:
-                ln = int(self.headers.get("Content-Length", 0))
-                raw = json.loads(self.rfile.read(ln) or b"{}")
-            except Exception as e:
-                self._send(400, {"ok": False, "error": str(e)})
+        if self.path.startswith("/api/"):
+            if not self._auth_ok():
+                self._send(401, {"ok": False, "error": "unauthorized"})
                 return
-            changed = []
-            with Handler.lock:
-                for k, v in raw.items():
-                    if k not in EDITABLE:
-                        continue
+            if self.path.startswith("/api/settings"):
+                try:
+                    ln = int(self.headers.get("Content-Length", 0))
+                    raw = json.loads(self.rfile.read(ln) or b"{}")
+                except Exception as e:
+                    self._send(400, {"ok": False, "error": str(e)})
+                    return
+                changed = []
+                with Handler.lock:
+                    for k, v in raw.items():
+                        if k not in EDITABLE:
+                            continue
+                        try:
+                            v = EDITABLE[k](v)
+                            set_nested(Handler.settings, k, v)
+                            changed.append(k)
+                        except Exception:
+                            pass
+                    # simpan ke yaml biar persist
                     try:
-                        v = EDITABLE[k](v)
-                        set_nested(Handler.settings, k, v)
-                        changed.append(k)
+                        with open("config/settings.yaml", "w", encoding="utf-8") as f:
+                            yaml.safe_dump(Handler.settings, f, allow_unicode=True, sort_keys=False)
                     except Exception:
                         pass
-                # simpan ke yaml biar persist
+                self._send(200, {"ok": True, "changed": changed})
+                return
+            if self.path.startswith("/api/run"):
                 try:
-                    with open("config/settings.yaml", "w", encoding="utf-8") as f:
-                        yaml.safe_dump(Handler.settings, f, allow_unicode=True, sort_keys=False)
-                except Exception:
-                    pass
-            self._send(200, {"ok": True, "changed": changed})
-            return
-        if self.path.startswith("/api/run"):
-            try:
-                threading.Thread(target=Handler.orch.run, daemon=True).start()
-                self._send(200, {"ok": True, "msg": "siklus dijalankan"})
-            except Exception as e:
-                self._send(500, {"ok": False, "error": str(e)})
-            return
+                    threading.Thread(target=Handler.orch.run, daemon=True).start()
+                    self._send(200, {"ok": True, "msg": "siklus dijalankan"})
+                except Exception as e:
+                    self._send(500, {"ok": False, "error": str(e)})
+                return
         self._send(404, {"ok": False})
 
 

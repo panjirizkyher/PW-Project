@@ -12,3 +12,8 @@ logs/market.json
 logs/account.json
 logs/tick.json
 logs/equity.json
+
+# tunnel / binary
+cloudflared.exe
+tunnel.log
+config/.env
