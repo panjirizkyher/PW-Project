@@ -8,3 +8,5 @@ logs/circuit_state.json
 logs/briefing.json
 logs/state.json
 logs/backtest_report.json
+logs/market.json
+logs/account.json

@@ -24,7 +24,7 @@ class Fill:
 class PaperExecutor:
     """Eksekusi simulasi. Harga diberikan caller (dari market data)."""
     def __init__(self):
-        pass
+        self.paper = True
 
     def execute(self, symbol, side, qty, price) -> Fill:
         import time
@@ -57,6 +57,7 @@ class ExchangeExecutor:
             except Exception:
                 pass
         self.testnet = testnet
+        self.paper = False
 
     def last_price(self, symbol: str) -> float:
         return float(self.ex.fetch_ticker(symbol)["last"])

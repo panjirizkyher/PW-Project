@@ -14,6 +14,8 @@ from core.circuit_breaker import CircuitBreaker
 from core.executor import PaperExecutor, ExchangeExecutor
 from core.state import load_state, save_state, reset_day_if_new
 from core.screener import screen
+from core.market_snapshot import snapshot as market_snapshot
+from core.account import snapshot as account_snapshot
 from data.onchain import fear_greed
 from data.macro import next_events
 from data.market import MarketData
@@ -226,6 +228,16 @@ class Orchestrator:
         }
         self._write_json(out)
         send(briefing_text, self.s)
+        # snapshot pasar (chart) + akun demo (real trades) untuk dashboard
+        try:
+            scan_syms = [r["symbol"] for r in top] + [symbol]
+            market_snapshot(self.market, scan_syms, tf, 60)
+        except Exception:
+            pass
+        try:
+            account_snapshot(self.exec, scan_syms)
+        except Exception:
+            pass
         return out
 
     def _write_json(self, out: dict):
