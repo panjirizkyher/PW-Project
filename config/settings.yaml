@@ -22,8 +22,8 @@ risk:
 signal:
   strategy: rsi_mean_reversion
   rsi_period: 14
-  rsi_oversold: 42.0
-  rsi_overbought: 65.0
+  rsi_oversold: 60.0
+  rsi_overbought: 70.0
   target_reward_risk_ratio: 2.5
 llm:
   base_url: https://inference.nousresearch.com/v1
