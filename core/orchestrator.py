@@ -20,6 +20,7 @@ from core.market_snapshot import snapshot as market_snapshot
 from core.account import snapshot as account_snapshot
 from data.onchain import fear_greed
 from data.macro import next_events
+from data.sentiment import market_psychology, coingecko_global, coingecko_trending
 from data.market import MarketData
 from agents.chronos import Chronos
 from agents.helios import Helios
@@ -96,13 +97,24 @@ class Orchestrator:
             send(msg, self.s)
             return msg
 
-        # 0. data makro/regim (Marcus) — sekali pakai buat modulate
+        # 0. data makro/regim (Chronos) — sekali pakai buat modulate
         macro = next_events()
+        psych = {}      # lapisan sentimen eksternal (bukan RSI/MA)
+        gglobal = {}
         if self.mock:
             fg = {"value": 30, "classification": "Fear"}
+            psych = {"score": -10, "label": "neutral", "parts": ["mock"], "trending": []}
             btc_df = add_indicators(self.market.ohlcv("BTC/USDT", tf, 200)) if hasattr(self.market, "ohlcv") else None
         else:
             fg = fear_greed() if self.is_crypto else {}
+            try:
+                psych = market_psychology() if self.is_crypto else {}
+            except Exception:
+                psych = {}
+            try:
+                gglobal = coingecko_global() if self.is_crypto else {}
+            except Exception:
+                gglobal = {}
             btc_df = None
             try:
                 btc_df = add_indicators(self.market.ohlcv("BTC/USDT", tf, 200))
@@ -114,7 +126,7 @@ class Orchestrator:
                 vol = float(btc_df["close"].pct_change().tail(24).std() or 0.0)
             except Exception:
                 vol = None
-        chronos = self.chronos.analyze(macro, fg, btc_df, vol)
+        chronos = self.chronos.analyze(macro, fg, btc_df, vol, gglobal, psych)
         chronos_txt = chronos.get("text", "") if isinstance(chronos, dict) else str(chronos)
         regime = (chronos.get("regime", "neutral") if isinstance(chronos, dict) else "neutral")
 
@@ -134,8 +146,9 @@ class Orchestrator:
         helios = self.helios.analyze(df)
         bias = helios.get("bias", "n/a")
 
-        # 3. VEGA (quant & crypto sentiment)
-        vega_txt = self.vega.analyze(fg, df) if self.is_crypto else "(bukan aset crypto — lewati)"
+        # 3. VEGA (quant & crypto sentiment + statistik + tren viral)
+        vega_txt = self.vega.analyze(fg, df, psych, psych.get("trending") if psych else None) \
+            if self.is_crypto else "(bukan aset crypto — lewati)"
 
         # 4. ARGUS (market surveillance) — scan token terpilih
         argus_scan = self.argus.scan(df, symbol)
@@ -212,6 +225,10 @@ class Orchestrator:
                 continue
             sig = self.leviathan.generate_signal(sdf, slast)
             if not sig or sig.get("side") not in ("buy", "sell"):
+                continue
+            # filter sentimen eksternal (bukan RSI/MA) — tolak long kalau bearish ekstrem
+            if not self.vega.sentiment_ok(psych, sig.get("side")):
+                fill_info += f"\nSKIP {sym}: sentimen bearish ekstrem (Vega)"
                 continue
             # jangan dobel di simbol yg sudah ada
             if any(p["symbol"] == sym for p in self.state["positions"]):

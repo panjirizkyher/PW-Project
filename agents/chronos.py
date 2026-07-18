@@ -1,12 +1,14 @@
 """
 AGENT — CHRONOS (Macro Timing Specialist)
 Versi deterministik (tanpa LLM API key).
-Analisa konteks makro/regim + TIMING dari data NYATA:
+Lapisan data NYATA (bukan cuma RSI/MA):
   - Fear&Greed (crypto sentiment)
   - Tren BTC (EMA50 vs EMA200) sebagai proxy risk-on/off
-  - Volatilitas harian (ATR-ish)
-  - Macro event (placeholder API)
-  - TIMING: fase siklus dari posisi harga dlm range N-hari -> entry window
+  - Volatilitas harian
+  - CoinGecko GLOBAL: BTC dominance, market-cap change 24h (makro crypto nyata)
+  - Sentimen eksternal (market_psychology): F&G + dominasi + tren viral
+  - Macro event placeholder (bisa diisi API FRED nanti)
+  - TIMING: posisi harga dlm range 20h
 Return teks + regime + score (0..100) yg dipakai orchestrator modulate risk.
 """
 from __future__ import annotations
@@ -19,7 +21,8 @@ class Chronos:
         self.name = "CHRONOS"
 
     def analyze(self, macro_events: list = None, fg: dict = None,
-                btc_df=None, volatility: float = None) -> dict:
+                btc_df=None, volatility: float = None,
+                gglobal: dict = None, psych: dict = None) -> dict:
         fg_val = (fg or {}).get("value")
         fg_cls = (fg or {}).get("classification", "n/a")
 
@@ -53,8 +56,7 @@ class Chronos:
                     btc_bias = "down"
                     trend_part = f"BTC downtrend (EMA50 {e50:,.0f} < EMA200 {e200:,.0f}) — risk-off"
                 else:
-                    trend_part = f"BTC rangka (EMA50≈EMA200) — netral"
-                # TIMING: posisi harga dalam 20-day range -> beli saat di bawah tengah
+                    trend_part = "BTC rangka (EMA50≈EMA200) — netral"
                 lo = float(btc_df["low"].tail(20).min())
                 hi = float(btc_df["high"].tail(20).max())
                 last = float(btc_df.iloc[-1]["close"])
@@ -64,10 +66,30 @@ class Chronos:
                         timing = "window: AKUMULASI (harga di bawah 40% range 20h)"
                     elif pos > 0.7:
                         timing = "window: DISTRIBUSI (harga di atas 70% range 20h)"
-                    else:
-                        timing = "window: netral"
             except Exception:
                 pass
+
+        # --- makro NYATA dari CoinGecko global ---
+        macro_part = "Makro: n/a"
+        if gglobal:
+            try:
+                parts = []
+                if gglobal.get("btc_dominance") is not None:
+                    parts.append(f"BTC.dom {gglobal['btc_dominance']:.1f}%")
+                if gglobal.get("mcap_change_24h") is not None:
+                    parts.append(f"mcapΔ24h {gglobal['mcap_change_24h']:+.1f}%")
+                if gglobal.get("eth_dominance") is not None:
+                    parts.append(f"ETH.dom {gglobal['eth_dominance']:.1f}%")
+                if parts:
+                    macro_part = "Makro: " + " | ".join(parts)
+            except Exception:
+                pass
+
+        # --- sentimen eksternal (bukan RSI/MA) ---
+        psych_part = "Sentimen: n/a"
+        if psych:
+            psych_part = (f"Sentimen eksternal: {psych.get('label')} "
+                          f"(skor {psych.get('score')}) — " + "; ".join(psych.get("parts", [])[:3]))
 
         vol_part = "Volatilitas: n/a"
         if volatility is not None:
@@ -89,9 +111,12 @@ class Chronos:
             score -= 15
         if volatility is not None and volatility > 0.06:
             score -= 5
+        if psych and psych.get("label") == "bearish":
+            score -= 10
+        elif psych and psych.get("label") == "bullish":
+            score += 10
         score = max(0.0, min(100.0, score))
 
-        text = (f"{fg_part}.\n{trend_part}.\n{vol_part}.\n{timing}.\n{ev_part}.\n"
+        text = (f"{fg_part}.\n{trend_part}.\n{macro_part}.\n{psych_part}.\n{vol_part}.\n{timing}.\n{ev_part}.\n"
                 f"Regim: {regime.upper()} (skor {score:.0f}/100).")
-
         return {"text": text, "regime": regime, "score": round(score, 1)}
