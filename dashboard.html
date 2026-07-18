@@ -597,8 +597,9 @@ async function loadAccounts(){
 loadAccounts();
 
 // jadwal: briefing 60s, tick realtime 4s, controls 30s, equity 10s
-tick(); setInterval(tick,60000);
-loadTick(); setInterval(loadTick,4000);
+tick(); setInterval(tick,3000);
+loadTick(); setInterval(loadTick,2000);
+loadMarkets(); setInterval(loadMarkets,15000);
 loadControls(); setInterval(loadControls,30000);
 loadEquity(); setInterval(loadEquity,10000);
 </script>

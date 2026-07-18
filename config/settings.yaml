@@ -40,6 +40,7 @@ dashboard:
   port: 8731
   refresh_seconds: 1
 price_feed:
-  refresh_seconds: 5
+  refresh_seconds: 2
+
 schedule:
   run_every_minutes: 2

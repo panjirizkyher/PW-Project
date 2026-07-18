@@ -1,8 +1,0 @@
-[SERVE] Dashboard: http://localhost:8731/dashboard.html
-[SERVE] price-feed — tiap 5s[SERVE] orchestrator loop — tiap 120s (Ctrl+C berhenti)
-
-127.0.0.1 - - [18/Jul/2026 22:32:11] "POST /api/run HTTP/1.1" 200 -
-127.0.0.1 - - [18/Jul/2026 22:32:21] "POST /api/run HTTP/1.1" 200 -
-127.0.0.1 - - [18/Jul/2026 22:32:31] "POST /api/run HTTP/1.1" 200 -
-127.0.0.1 - - [18/Jul/2026 22:32:41] "POST /api/run HTTP/1.1" 200 -
-127.0.0.1 - - [18/Jul/2026 22:32:52] "POST /api/run HTTP/1.1" 200 -
