@@ -377,9 +377,15 @@ function drawCandle(canvas, ohlc){
 function renderMarket(){
   let m;
   try{ m=JSON.parse(sessionStorage.getItem('mkt_cache')||'null'); }catch(e){ m=null; }
-  if(!m) return;
+  if(!m) m={};
   const box=document.getElementById('mkt'); if(!box) return; box.innerHTML='';
+  // merge symbol dari posisi terbuka yg tdk ada di market.json (Fix B)
+  let st=null;
+  try{ st=JSON.parse(sessionStorage.getItem('state_cache')||'null'); }catch(e){}
+  const posSyms=(st&&st.positions)?st.positions:[];
+  const drawn={};
   Object.entries(m).forEach(([sym,info])=>{
+    drawn[sym]=1;
     const card=document.createElement('div');card.className='chartcard';
     const up=(info.last||0)>=(info.ohlc&&info.ohlc.length?info.ohlc[info.ohlc.length-1][1]:0);
     card.innerHTML=`<div class="ch"><span class="sym">${sym}</span><span class="px ${up?'pos':'neg'}">${info.last}</span></div>
@@ -388,7 +394,18 @@ function renderMarket(){
     const cv=card.querySelector('canvas');
     requestAnimationFrame(()=>drawCandle(cv, info.ohlc));
   });
-  if(!Object.keys(m).length) box.innerHTML='<span class="spinner">belum ada data pasar</span>';
+  // posisi yg tdk ada chart: card harga saja (harga live dari pos['last'])
+  posSyms.forEach(p=>{
+    if(drawn[p.symbol]) return;
+    drawn[p.symbol]=1;
+    const last=p.last||p.entry||0;
+    const card=document.createElement('div');card.className='chartcard';
+    const pl=((last-(p.entry||last))*(p.side==='buy'?1:-1));
+    card.innerHTML=`<div class="ch"><span class="sym">${p.symbol}</span><span class="px">${last}</span></div>
+      <div class="rsi">OPEN ${p.side.toUpperCase()} @ ${p.entry} · PnL ${pl>=0?'+':''}${pl.toFixed(2)}</div>`;
+    box.appendChild(card);
+  });
+  if(!Object.keys(drawn).length) box.innerHTML='<span class="spinner">belum ada data pasar</span>';
 }
 
 async function loadMarkets(){
@@ -428,6 +445,7 @@ async function loadAccount(){
     try{ st=await (await fetch('logs/state.json?t='+Date.now())).json(); }catch(e){ st=null; }
     try{ tl=await (await fetch('logs/trade_log.json?t='+Date.now())).json(); }catch(e){ tl=[]; }
     try{ mkt=await (await fetch('logs/market.json?t='+Date.now())).json(); }catch(e){ mkt={}; }
+    if(st) sessionStorage.setItem('state_cache', JSON.stringify(st));   // buat Market Watch (Fix B)
     // ---- OPEN POSITIONS ----
     const opBox=document.getElementById('open-pos');
     const pos=(st&&st.positions)||[];

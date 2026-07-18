@@ -489,6 +489,7 @@ class Orchestrator:
             for pos in self.state.get("positions", []):
                 try:
                     lp = float(self.market.last_price(pos["symbol"]))
+                    pos["last"] = lp   # simpan harga live (Fix A) hanya kalau sukses
                 except Exception:
                     lp = pos.get("last", pos.get("entry", 0))
                 if pos["side"] == "buy":
