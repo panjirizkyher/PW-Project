@@ -586,6 +586,7 @@ document.getElementById('btn-acc-add').addEventListener('click',async ()=>{
     const r=await fetch('/api/accounts',{method:'POST',headers:apiHdrs(),
       body:JSON.stringify({action:'add',name,mode,key,secret})});
     const d=await r.json();
+    if(r.status===401){ status.textContent='❌ token salah — buka dashboard dengan ?t=TOKEN'; return; }
     if(d.ok){
       status.textContent='✅ '+d.msg;
       document.getElementById('acc-secret').value='';
@@ -597,7 +598,9 @@ document.getElementById('btn-acc-add').addEventListener('click',async ()=>{
 });
 async function loadAccounts(){
   try{
-    const d=await (await fetch('/api/accounts',{headers:apiHdrs()})).json();
+    const r=await fetch('/api/accounts',{headers:apiHdrs()});
+    if(r.status===401){ document.getElementById('acc-list').innerHTML='<span class="spinner">token salah — buka dengan ?t=TOKEN</span>'; return; }
+    const d=await r.json();
     const el=document.getElementById('acc-list');
     if(!d.accounts || !d.accounts.length){ el.innerHTML='<span class="spinner">belum ada akun. Tambah di atas.</span>'; return; }
     el.innerHTML='';
