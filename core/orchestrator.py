@@ -156,6 +156,9 @@ class Orchestrator:
 
     def run(self) -> str:
         out = self.run_structured()
+        # kalau breaker halted, run_structured balikin STRING (bukan dict)
+        if isinstance(out, str):
+            return out
         # audit log
         self._audit(out["briefing_text"])
         return out["briefing_text"]
