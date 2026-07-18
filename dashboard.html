@@ -105,6 +105,10 @@
   .acct .row:last-child{border-bottom:none}
   .trade{display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-bottom:1px solid var(--line)}
   .trade.buy{color:var(--buy)} .trade.sell{color:var(--sell)}
+  .trades{max-height:240px;overflow-y:auto}
+  .trade .pl{font-weight:700}
+  .trade .pl.pos{color:var(--buy)} .trade .pl.neg{color:var(--sell)}
+  .trade .sub{color:var(--dim);font-size:10px}
   .empty{color:var(--dim);font-size:12px;font-style:italic}
   /* ===== REALTIME TICK STRIP ===== */
   .tick{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
@@ -227,6 +231,17 @@
       <div class="x"><span class="k">Max DD</span><span class="v" id="eq-dd">—</span></div>
     </div>
     <canvas id="eq-canvas"></canvas>
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <div class="panel">
+      <h3>🟢 Open Positions <span id="op-count" class="ctxt" style="color:var(--dim);font-size:11px"></span></h3>
+      <div class="trades" id="open-pos"><span class="spinner">menunggu posisi…</span></div>
+    </div>
+    <div class="panel">
+      <h3>🔴 Closed Trades <span id="cl-count" class="ctxt" style="color:var(--dim);font-size:11px"></span></h3>
+      <div class="trades" id="closed-tr"><span class="spinner">menunggu trade…</span></div>
+    </div>
   </div>
 
   <div class="grid" id="grid"></div>
@@ -406,6 +421,50 @@ async function loadAccount(){
     }
     // equity stats dari account
     drawEquity();
+  }
+
+  async function loadTrades(){
+    let st, tl, mkt;
+    try{ st=await (await fetch('logs/state.json?t='+Date.now())).json(); }catch(e){ st=null; }
+    try{ tl=await (await fetch('logs/trade_log.json?t='+Date.now())).json(); }catch(e){ tl=[]; }
+    try{ mkt=await (await fetch('logs/market.json?t='+Date.now())).json(); }catch(e){ mkt={}; }
+    // ---- OPEN POSITIONS ----
+    const opBox=document.getElementById('open-pos');
+    const pos=(st&&st.positions)||[];
+    document.getElementById('op-count').textContent= pos.length? '('+pos.length+')' : '';
+    if(!pos.length){ opBox.innerHTML='<div class="empty">tidak ada posisi terbuka</div>'; }
+    else{
+      opBox.innerHTML='';
+      pos.forEach(p=>{
+        const last=(mkt[p.symbol]&&mkt[p.symbol].last)||p.last||p.entry;
+        const qty=p.qty||0, entry=p.entry||0;
+        const pl=(last-entry)*(p.side==='buy'?qty:-qty);
+        const cls=pl>=0?'pos':'neg';
+        const sign=pl>=0?'+':'';
+        const uptime=Math.floor((Date.now()/1000)-((st.last_cycle_ts||0)));
+        opBox.innerHTML+=`<div class="trade ${p.side}">
+          <div><div>${p.symbol}</div><div class="sub">${p.side.toUpperCase()} ${qty} @ ${entry}</div></div>
+          <div style="text-align:right"><div class="pl ${cls}">${sign}${pl.toFixed(2)}</div><div class="sub">last ${last}</div></div>
+        </div>`;
+      });
+    }
+    // ---- CLOSED TRADES ----
+    const clBox=document.getElementById('closed-tr');
+    const closed=Array.isArray(tl)?tl.slice(-25).reverse():[];
+    document.getElementById('cl-count').textContent= tl&&tl.length? '('+tl.length+' total)' : '';
+    if(!closed.length){ clBox.innerHTML='<div class="empty">belum ada trade ditutup</div>'; }
+    else{
+      clBox.innerHTML='';
+      closed.forEach(t=>{
+        const pl=t.pnl||0; const cls=pl>=0?'pos':'neg'; const sign=pl>=0?'+':'';
+        const ts=t.ts?new Date(t.ts).toLocaleString():'';
+        const side=(t.side||'buy');
+        clBox.innerHTML+=`<div class="trade ${side}">
+          <div><div>${t.symbol||'?'}</div><div class="sub">${ts}</div></div>
+          <div style="text-align:right"><div class="pl ${cls}">${sign}${pl.toFixed(2)}</div><div class="sub">${(t.strategy||'')}</div></div>
+        </div>`;
+      });
+    }
   }
 
   function drawEquity(){
@@ -602,6 +661,7 @@ loadTick(); setInterval(loadTick,2000);
 loadMarkets(); setInterval(loadMarkets,15000);
 loadControls(); setInterval(loadControls,30000);
 loadEquity(); setInterval(loadEquity,10000);
+loadTrades(); setInterval(loadTrades,5000);
 </script>
 </body>
 </html>
