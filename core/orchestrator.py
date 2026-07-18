@@ -1,7 +1,9 @@
 """
 ORCHESTRATOR — PEWE
-Menjalankan alur kerja tim: data -> Marcus -> Rafael -> Nakamoto -> Kodok(sinyal)
--> Eleanor(risk HARD gate) -> Grace(psikologi) -> executor(paper) -> notify.
+Menjalankan alur kerja tim 8 agent:
+  data -> Chronos(makro/timing) -> Helios(trend) -> Vega(quant) -> Leviathan(sinyal/eksekusi)
+  -> Nyx(risk HARD gate) -> Atlas(head strategist) -> Argus(surveillance) -> Phoenix(recovery)
+  -> executor(paper/testnet) -> notify.
 """
 from __future__ import annotations
 import json
@@ -19,12 +21,14 @@ from core.account import snapshot as account_snapshot
 from data.onchain import fear_greed
 from data.macro import next_events
 from data.market import MarketData
-from agents.marcus import Marcus
-from agents.rafael import Rafael
-from agents.nakamoto import Nakamoto
-from agents.eleanor import Eleanor
-from agents.grace import Grace
-from agents.kodok import Kodok
+from agents.chronos import Chronos
+from agents.helios import Helios
+from agents.vega import Vega
+from agents.nyx import Nyx
+from agents.atlas import Atlas
+from agents.argus import Argus
+from agents.phoenix import Phoenix
+from agents.leviathan import Leviathan
 from notify.telegram import send
 
 
@@ -47,12 +51,14 @@ class Orchestrator:
         self.state = reset_day_if_new(self.state)
         if self.state.get("equity") is None:
             self.state["equity"] = self.risk.balance
-        self.marcus = Marcus(self.llm)
-        self.rafael = Rafael()
-        self.naka = Nakamoto(self.llm)
-        self.eleanor = Eleanor()
-        self.grace = Grace(self.llm)
-        self.kodok = Kodok(settings)
+        self.chronos = Chronos(self.llm)
+        self.helios = Helios()
+        self.vega = Vega(self.llm)
+        self.nyx = Nyx()
+        self.atlas = Atlas(self.llm)
+        self.argus = Argus()
+        self.phoenix = Phoenix()
+        self.leviathan = Leviathan(settings)
         self.is_crypto = "USD" in settings.get("exchange", {}).get("symbol", "") or \
                          "USDT" in settings.get("exchange", {}).get("symbol", "")
 
@@ -108,9 +114,9 @@ class Orchestrator:
                 vol = float(btc_df["close"].pct_change().tail(24).std() or 0.0)
             except Exception:
                 vol = None
-        marcus = self.marcus.analyze(macro, fg, btc_df, vol)
-        marcus_txt = marcus.get("text", "") if isinstance(marcus, dict) else str(marcus)
-        regime = (marcus.get("regime", "neutral") if isinstance(marcus, dict) else "neutral")
+        chronos = self.chronos.analyze(macro, fg, btc_df, vol)
+        chronos_txt = chronos.get("text", "") if isinstance(chronos, dict) else str(chronos)
+        regime = (chronos.get("regime", "neutral") if isinstance(chronos, dict) else "neutral")
 
         # 1. SCREENER — cari setup terbaik dari banyak token
         top = screen(self.market, self.s, top_n=8, max_scan=50, mock=self.mock)
@@ -125,16 +131,27 @@ class Orchestrator:
         else:
             df = add_indicators(self.market.ohlcv(symbol, tf, 200))
             last = self.market.last_price(symbol)
-        raf = self.rafael.analyze(df)
-        bias = raf.get("bias", "n/a")
+        helios = self.helios.analyze(df)
+        bias = helios.get("bias", "n/a")
 
-        # 5. NAKAMOTO (crypto)
-        naka_txt = self.naka.analyze(fg) if self.is_crypto else "(bukan aset crypto — lewati)"
+        # 3. VEGA (quant & crypto sentiment)
+        vega_txt = self.vega.analyze(fg, df) if self.is_crypto else "(bukan aset crypto — lewati)"
+
+        # 4. ARGUS (market surveillance) — scan token terpilih
+        argus_scan = self.argus.scan(df, symbol)
+        argus_txt = self.argus.watchlist(top)
 
         eleanor_txt = ""
         fill_info = ""
         trade_action = "hold"
         exited_this_cycle = False
+
+        # 8. PHOENIX (recovery) — cek fase drawdown
+        phoenix = self.phoenix.assess(self.state.get("equity", 0.0),
+                                       self.state.get("realized_pnl", 0.0))
+        # scale ukuran posisi kalau recovery
+        if phoenix.get("scale", 1.0) < 1.0:
+            self.risk.position_scale = phoenix["scale"]
 
         # === MANAJEMEN EXIT dulu (per posisi) ===
         for pos in list(self.state["positions"]):
@@ -193,7 +210,7 @@ class Orchestrator:
                 slast = float(sdf.iloc[-1]["close"]) if self.mock else self.market.last_price(sym)
             except Exception:
                 continue
-            sig = self.kodok.generate_signal(sdf, slast)
+            sig = self.leviathan.generate_signal(sdf, slast)
             if not sig or sig.get("side") not in ("buy", "sell"):
                 continue
             # jangan dobel di simbol yg sudah ada
@@ -233,8 +250,8 @@ class Orchestrator:
         except Exception:
             pass
 
-        # 7. GRACE (psikologi) — dari state NYATA
-        grace_txt = self.grace.reflect({
+        # 7. ATLAS (head strategist) — dari state NYATA + sintesis
+        atlas_txt = self.atlas.reflect({
             "realized_pnl": self.state.get("realized_pnl", 0.0),
             "equity": self.state.get("equity", 0.0),
             "balance": self.risk.balance,
@@ -243,18 +260,21 @@ class Orchestrator:
         })
 
         # 8. RENDER BRIEFING
-        # Marcus sekarang deterministik (skor regim)
-        eleanor_txt = self.eleanor.comment(
+        eleanor_txt = self.nyx.comment(
             trade_action in ("entry",) or exited_this_cycle,
             f"Regim: {regime.upper()}",
-            len(self.state["positions"]), self.risk.max_open) if not eleanor_txt else eleanor_txt
+            len(self.state["positions"]), self.risk.max_open,
+            halted=self.breaker.halted,
+            daily_loss_pct=abs(self.state.get("realized_pnl", 0.0))) if not eleanor_txt else eleanor_txt
         sections = [
-            {"key": "marcus",   "name": "PROF. MARCUS",     "role": "Makro",       "text": marcus_txt},
-            {"key": "rafael",   "name": "RAFAEL",           "role": "Teknikal",    "text": raf.get("text", "")},
-            {"key": "naka",     "name": "NAKAMOTO X",       "role": "Crypto",      "text": naka_txt},
-            {"key": "kodok",    "name": "KODOK",            "role": "Sinyal",      "text": f"entries={new_entries} top_setup={symbol} strategy=rsi+breakout"},
-            {"key": "eleanor",  "name": "MADAME ELEANOR",   "role": "Risk",        "text": f"{eleanor_txt}\n{fill_info}"},
-            {"key": "grace",    "name": "DR. GRACE",        "role": "Psikologi",   "text": grace_txt},
+            {"key": "atlas",    "name": "ATLAS",        "role": "Head Strategist",   "text": atlas_txt},
+            {"key": "chronos",  "name": "CHRONOS",      "role": "Macro Timing",      "text": chronos_txt},
+            {"key": "helios",   "name": "HELIOS",       "role": "Trend Analyst",     "text": helios.get("text", "")},
+            {"key": "vega",     "name": "VEGA",         "role": "Quant & Statistics", "text": vega_txt},
+            {"key": "leviathan","name": "LEVIATHAN",    "role": "Signal/Execution",  "text": f"entries={new_entries} top_setup={symbol} strategy=rsi+breakout"},
+            {"key": "nyx",      "name": "NYX",          "role": "Risk Guardian",     "text": f"{eleanor_txt}\n{fill_info}"},
+            {"key": "argus",    "name": "ARGUS",        "role": "Market Surveillance","text": argus_txt},
+            {"key": "phoenix",  "name": "PHOENIX",      "role": "Recovery",          "text": f"[{phoenix.get('status','?').upper()}] dd={phoenix.get('dd_pct',0)}% — {phoenix.get('advice','')}"},
         ]
         screen_txt = "\n".join(f"  {r['symbol']}: skor {r['score']} | RSI {r['rsi']} | {r['side_bias']}" for r in top)
         briefing_text = (

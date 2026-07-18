@@ -38,4 +38,24 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["rsi14"] = rsi(df["close"], 14)
     df["ema50"] = ema(df["close"], 50)
     df["ema200"] = ema(df["close"], 200)
+    df["adx"] = adx(df, 14)  # kekuatan trend (Helios)
     return df
+
+
+def adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """ADX sederhana (Wilder) — ukur kekuatan trend, bukan arah."""
+    high, low, close = df["high"], df["low"], df["close"]
+    up = high.diff()
+    down = -low.diff()
+    plus_dm = np.where((up > down) & (up > 0), up, 0.0)
+    minus_dm = np.where((down > up) & (down > 0), down, 0.0)
+    tr = np.maximum.reduce([
+        (high - low).abs().values,
+        (high - close.shift()).abs().values,
+        (low - close.shift()).abs().values,
+    ])
+    atr = pd.Series(tr, index=df.index).ewm(alpha=1/period, adjust=False).mean()
+    plus_di = 100 * pd.Series(plus_dm, index=df.index).ewm(alpha=1/period, adjust=False).mean() / (atr + 1e-12)
+    minus_di = 100 * pd.Series(minus_dm, index=df.index).ewm(alpha=1/period, adjust=False).mean() / (atr + 1e-12)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di + 1e-12)
+    return dx.ewm(alpha=1/period, adjust=False).mean()

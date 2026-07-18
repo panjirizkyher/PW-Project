@@ -27,6 +27,7 @@ class RiskEngine:
         self.min_rr = float(r.get("min_reward_risk_ratio", 2.0))
         self.max_open = int(r.get("max_open_positions", 3))
         self.max_exposure_pct = float(r.get("max_total_exposure_pct", 10.0))
+        self.position_scale = 1.0  # diset Phoenix saat recovery (1.0 = normal)
 
     # --- validasi trade tunggal ---
     def validate(self, t: ProposedTrade) -> tuple[bool, str]:
@@ -41,9 +42,9 @@ class RiskEngine:
             return False, f"R:R {rr:.2f} < minimum {self.min_rr:.2f} (Madame Eleanor: tolak)."
         return True, f"R:R {rr:.2f} OK."
 
-    # --- ukuran posisi (1-2% risk) ---
+    # --- ukuran posisi (1-2% risk) x position_scale ---
     def position_size(self, t: ProposedTrade) -> float:
-        risk_amt = self.balance * (self.risk_pct / 100.0)
+        risk_amt = self.balance * (self.risk_pct / 100.0) * self.position_scale
         risk_per_unit = abs(t.entry - t.stop_loss)
         if risk_per_unit <= 0:
             return 0.0

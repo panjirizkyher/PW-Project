@@ -1,29 +1,30 @@
 """
-AGENT 6 — KODOK (Execution & Coding / Signal Engine)
+AGENT — LEVIATHAN (Execution & Liquidity / Signal Engine)
 Sinyal DETERMINISTIK dari data nyata (bukan tebakan LLM).
-Dua strategi aktif (auto-pilih terbaik per kondisi pasar):
+Strategi aktif (auto-pilih terbaik per kondisi pasar):
   1. RSI_MEAN_REVERSION — beli saat oversold / jual saat overbought
   2. BREAKOUT — beli saat harga tembus high N-bar / jual saat tembus low
-Kedua selalu pasang SL (ATR) + TP (R:R target). Eleanor (risk gate)
-validasi R:R >= floor sebelum eksekusi.
+Kedua selalu pasang SL (ATR) + TP (R:R target). Nyx (risk gate) validasi
+R:R >= floor sebelum eksekusi. Leviathan juga simulasikan SLIPPAGE/likuiditas
+sederhana (biaya estimasi) agar eksekusi realistis.
 """
 from __future__ import annotations
 import pandas as pd
 from core.indicators import rsi
 
 
-class Kodok:
+class Leviathan:
     def __init__(self, settings: dict):
         cfg = settings.get("signal", {})
         self.cfg = cfg
-        self.name = "KODOK"
+        self.name = "LEVIATHAN"
         self.target_rr = float(cfg.get("target_reward_risk_ratio", 2.5))
         self.rsi_os = float(cfg.get("rsi_oversold", 35.0))
         self.rsi_ob = float(cfg.get("rsi_overbought", 65.0))
         self.rsi_period = int(cfg.get("rsi_period", 14))
         self.breakout_bars = int(cfg.get("breakout_bars", 20))
+        self.est_fee = float(cfg.get("est_fee_pct", 0.001))  # 0.1% per side
 
-    # ---- strategi 1: RSI mean-reversion ----
     def _rsi_signal(self, df: pd.DataFrame, last: float) -> dict:
         if "rsi14" not in df.columns:
             return {}
@@ -47,7 +48,6 @@ class Kodok:
                 "take_profit": round(tgt, 2), "conviction": round(min(max(conv, 0), 1), 2),
                 "strategy": "rsi_reversion"}
 
-    # ---- strategi 2: breakout ----
     def _breakout_signal(self, df: pd.DataFrame, last: float) -> dict:
         if len(df) < self.breakout_bars + 2:
             return {}
@@ -55,13 +55,10 @@ class Kodok:
         hi = float(look["high"].max())
         lo = float(look["low"].min())
         atr = (df["high"] - df["low"]).tail(self.rsi_period).mean()
-        # beli bila tutup tembus high; jual bila tembus low
         if last > hi:
-            side = "buy"; stop = last - atr; tgt = last + atr * self.target_rr
-            conv = 0.7
+            side = "buy"; stop = last - atr; tgt = last + atr * self.target_rr; conv = 0.7
         elif last < lo:
-            side = "sell"; stop = last + atr; tgt = last - atr * self.target_rr
-            conv = 0.7
+            side = "sell"; stop = last + atr; tgt = last - atr * self.target_rr; conv = 0.7
         else:
             return {"side": "hold"}
         return {"side": side, "entry": round(last, 2), "stop_loss": round(stop, 2),
@@ -69,7 +66,7 @@ class Kodok:
                 "strategy": "breakout"}
 
     def generate_signal(self, df: pd.DataFrame, last_price: float) -> dict:
-        """Pilih sinyal terbaik (prioritas breakout bila ada, else RSI)."""
+        """Pilih sinyal terbaik; tambah estimasi biaya likuiditas."""
         if df is None or df.empty:
             return {}
         brk = self._breakout_signal(df, last_price)
@@ -78,6 +75,9 @@ class Kodok:
         rev = self._rsi_signal(df, last_price)
         if rev and rev.get("side") in ("buy", "sell"):
             return rev
-        # hold
         return {"side": "hold", "entry": round(last_price, 2), "stop_loss": 0.0,
                 "take_profit": 0.0, "conviction": 0.0}
+
+    def est_cost(self, notional: float) -> float:
+        """Estimasi biaya eksekusi (fee 2 sisi). Dipakai ukur net profit realistis."""
+        return notional * 2 * self.est_fee

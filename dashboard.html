@@ -222,14 +222,16 @@
 
 <script>
 const AGENTS=[
-  {key:'marcus',nm:'PROF. MARCUS',rl:'Chief Analyst · Makro',ava:'🎓',c:'var(--marcus)',tag:'FOMC · NFP · CPI'},
-  {key:'rafael',nm:'RAFAEL',rl:'Technical Trader',ava:'📈',c:'var(--rafael)',tag:'Price Action'},
-  {key:'naka',nm:'NAKAMOTO X',rl:'Crypto Specialist',ava:'₿',c:'var(--naka)',tag:'On-chain · F&G'},
-  {key:'kodok',nm:'KODOK',rl:'Execution & Coding',ava:'🐸',c:'var(--kodok)',tag:'RSI · Pine/Python'},
-  {key:'eleanor',nm:'MADAME ELEANOR',rl:'Risk Manager',ava:'🛡️',c:'var(--eleanor)',tag:'R:R ≥ 1:2 · 1%'},
-  {key:'grace',nm:'DR. GRACE',rl:'Trading Psychologist',ava:'🧠',c:'var(--grace)',tag:'Bias · Mindfulness'},
+  {key:'atlas',nm:'ATLAS',rl:'Head Strategist',ava:'👑',c:'#fbbf24',tag:'Koordinator Tim'},
+  {key:'chronos',nm:'CHRONOS',rl:'Macro Timing Specialist',ava:'⏳',c:'#60a5fa',tag:'FOMC · NFP · CPI · Timing'},
+  {key:'helios',nm:'HELIOS',rl:'Trend Analyst',ava:'☀️',c:'#f59e0b',tag:'Price Action · ADX'},
+  {key:'vega',nm:'VEGA',rl:'Quant & Statistics',ava:'📊',c:'#34d399',tag:'Sharpe · Skew · F&G'},
+  {key:'leviathan',nm:'LEVIATHAN',rl:'Execution & Liquidity',ava:'🐉',c:'#22d3ee',tag:'RSI · Breakout · Slippage'},
+  {key:'nyx',nm:'NYX',rl:'Risk Guardian',ava:'🛡️',c:'#f87171',tag:'R:R ≥ 1:2 · 1% · Circuit'},
+  {key:'argus',nm:'ARGUS',rl:'Market Surveillance',ava:'👁️',c:'#a78bfa',tag:'Anomali · Likuiditas'},
+  {key:'phoenix',nm:'PHOENIX',rl:'Recovery Specialist',ava:'🔥',c:'#fb923c',tag:'Drawdown · Scale-down'},
 ];
-const COL={marcus:'m',rafael:'r',naka:'n',kodok:'k',eleanor:'e',grace:'g'};
+const COL={atlas:'a',chronos:'c',helios:'h',vega:'v',leviathan:'l',nyx:'n',argus:'u',phoenix:'p'};
 const grid=document.getElementById('grid');
 const cardEls={};
 AGENTS.forEach(a=>{

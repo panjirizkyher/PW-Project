@@ -22,7 +22,7 @@ risk:
 signal:
   strategy: rsi_mean_reversion_plus_breakout
   rsi_period: 14
-  rsi_oversold: 55.0
+  rsi_oversold: 50.0
   rsi_overbought: 70.0
   target_reward_risk_ratio: 2.5
   breakout_bars: 20
