@@ -79,21 +79,32 @@ class Orchestrator:
         return ExchangeExecutor(self.s["exchange"]["id"], ak, sk, testnet=testnet)
 
     def _load_lessons(self, n: int = 5) -> str:
-        """Memory sederhana (adaptasi TradingAgents 'lessons from prior decisions').
-        Baca n trade terakhir dari logs/trade_log.json -> ringkas pelajaran."""
+        """Memory lintas-waktu (adaptasi TradingAgents 'past_context').
+        Gabung 2 sumber:
+          - logs/trade_log.json  (OUTCOME: WIN/LOSS tiap trade)
+          - logs/cycle_memory.json (KONTEKS: regime, sentimen, skor konsensus, equity)
+        Atlas baca ini -> tidak amnesia, bisa bandingkan keputusan lalu vs hasil."""
         try:
             import json, os
-            p = "logs/trade_log.json"
-            if not os.path.exists(p):
-                return ""
-            arr = json.load(open(p))
-            recent = arr[-n:]
-            lines = []
-            for t in recent:
-                pnl = t.get("pnl", 0.0)
-                tag = "WIN" if pnl > 0 else "LOSS"
-                lines.append(f"{tag} {t.get('symbol')} {t.get('strategy')} pnl={pnl:+.1f}")
-            return "; ".join(lines)
+            parts = []
+            # --- outcome trade ---
+            pt = "logs/trade_log.json"
+            if os.path.exists(pt):
+                arr = json.load(open(pt))
+                for t in arr[-n:]:
+                    pnl = t.get("pnl", 0.0)
+                    tag = "WIN" if pnl > 0 else "LOSS"
+                    parts.append(f"{tag} {t.get('symbol')} {t.get('strategy')} {pnl:+.1f}")
+            # --- konteks cycle (kondisi pasar saat keputusan) ---
+            pc = "logs/cycle_memory.json"
+            if os.path.exists(pc):
+                arr = json.load(open(pc))
+                for c in arr[-n:]:
+                    cs = c.get("consensus", {})
+                    parts.append(
+                        f"[{c.get('action')}] regim={c.get('regime')} sent={c.get('sentiment')} "
+                        f"conf={cs.get('confidence')} final={cs.get('final')} eq={c.get('equity')}")
+            return "; ".join(parts)
         except Exception:
             return ""
 
@@ -105,6 +116,31 @@ class Orchestrator:
             arr = json.load(open(p)) if os.path.exists(p) else []
             arr.append({"ts": int(__import__("time").time()), "symbol": symbol,
                         "side": side, "strategy": strategy, "pnl": round(float(pnl), 2)})
+            json.dump(arr[-200:], open(p, "w"))
+        except Exception:
+            pass
+
+    def _save_cycle_memory(self, out: dict, consensus: dict, regime: str, psych_label: str):
+        """Memory konteks lintas-waktu (adaptasi TradingAgents 'past_context').
+        Simpan ringkasan tiap cycle: skor konsensus, regime, sentimen, + tiap agent text.
+        Atlas baca ini di cycle berikutnya -> tidak amnesia."""
+        try:
+            import json, os
+            p = "logs/cycle_memory.json"
+            arr = json.load(open(p)) if os.path.exists(p) else []
+            rec = {
+                "ts": int(__import__("time").time()),
+                "action": out.get("action"),
+                "regime": regime,
+                "sentiment": psych_label,
+                "consensus": {k: consensus.get(k) for k in ("decision", "confidence",
+                                                           "analyst_score", "risk_score", "final")},
+                "positions": len(self.state.get("positions", [])),
+                "equity": round(float(self.state.get("equity", 0.0)), 2),
+                "realized_pnl": round(float(self.state.get("realized_pnl", 0.0)), 2),
+                "agents": {s["key"]: s.get("text", "")[:200] for s in out.get("sections", [])},
+            }
+            arr.append(rec)
             json.dump(arr[-200:], open(p, "w"))
         except Exception:
             pass
@@ -405,6 +441,12 @@ class Orchestrator:
             pass
         try:
             account_snapshot(self.exec, scan_syms)
+        except Exception:
+            pass
+        # simpan memory konteks lintas-waktu (Atlas baca di cycle berikutnya)
+        try:
+            self._save_cycle_memory(out, consensus, regime,
+                                    (psych or {}).get("label", "n/a"))
         except Exception:
             pass
         return out
