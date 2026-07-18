@@ -215,7 +215,8 @@ def price_feed(orch: Orchestrator, interval: int):
             try:
                 st = orch.state
                 eq_record(st.get("equity", 0), st.get("realized_pnl", 0),
-                          len(st.get("positions", [])), int(time.time()))
+                          len(st.get("positions", [])), int(time.time()),
+                          base_balance=orch.risk.balance)
             except Exception:
                 pass
         except Exception:

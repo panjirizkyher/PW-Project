@@ -7,8 +7,12 @@ from __future__ import annotations
 import os, json
 
 
-def record(equity: float, pnl: float, positions: int, ts: int = None):
-    """Tambah 1 point ke logs/equity.json (cap 3000 point)."""
+def record(equity: float, pnl: float, positions: int, ts: int = None, base_balance: float = None):
+    """Tambah 1 point ke logs/equity.json (cap 3000 point).
+    Jika base_balance diberi dan skala equity menyimpang >2x dari base
+    (mis. sesi lama dengan balance beda / backtest tumpah ke file yg sama),
+    curve di-reset otomatis supaya peak/dd konsisten dengan sesi sekarang.
+    """
     if ts is None:
         import time
         ts = int(time.time())
@@ -20,6 +24,15 @@ def record(equity: float, pnl: float, positions: int, ts: int = None):
             arr = json.load(open(path))
         except Exception:
             arr = []
+    # guard: reset kalau skala berubah drastis antar sesi
+    if base_balance and arr:
+        try:
+            prev = arr[-1]["equity"]
+            if prev > 0 and (equity / prev > 2.0 or prev / equity > 2.0):
+                # skala beda >2x -> anggap sesi baru, mulai bersih
+                arr = []
+        except Exception:
+            pass
     arr.append({"ts": ts, "equity": round(float(equity), 2),
                 "pnl": round(float(pnl), 2), "positions": int(positions)})
     if len(arr) > 3000:
