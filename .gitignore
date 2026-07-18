@@ -13,6 +13,13 @@ logs/market.json
 logs/account.json
 logs/tick.json
 logs/equity.json
+logs/ml/
+logs/bot_console.log
+logs/bot_debug.log
+logs/cycle_memory.json
+logs/trade_log.json
+logs/hybrid_report.json
+logs/multiasset_report.json
 
 # tunnel / binary
 cloudflared.exe

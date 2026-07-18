@@ -31,6 +31,8 @@ from agents.atlas import Atlas
 from agents.argus import Argus
 from agents.phoenix import Phoenix
 from agents.leviathan import Leviathan
+from core.ml.regime_detector import RegimeDetector, _feat_row
+from core.ml.signal_filter import SignalFilter
 from notify.telegram import send
 
 
@@ -221,8 +223,34 @@ class Orchestrator:
         chronos_txt = chronos.get("text", "") if isinstance(chronos, dict) else str(chronos)
         regime = (chronos.get("regime", "neutral") if isinstance(chronos, dict) else "neutral")
 
+        # 0b. ML REGIME DETECTION (Learning Agent) — klasifikasi market mandiri.
+        # Override regime makro dgn prediksi ML dari fitur LIVE (btc_df + F&G + breadth).
+        regime_ml = regime
+        ml_regime_label = ""
+        ml_conf = 0.0
+        try:
+            rdet, _ = RegimeDetector.load()
+            fgv = (fg or {}).get("value") if isinstance(fg, dict) else None
+            br = (psych or {}).get("score")
+            br = (br + 100) / 200.0 if isinstance(br, (int, float)) else 0.5  # -100..100 -> 0..1
+            ddom = (gglobal or {}).get("btc_dominance_change_24h") if isinstance(gglobal, dict) else None
+            frow = _feat_row(btc_df, fg_value=fgv, breadth=br, dom_delta=ddom)
+            if frow:
+                pr = rdet.predict(frow)
+                if pr.get("trained"):
+                    regime_ml = pr["regime"]
+                    ml_regime_label = pr["label"]
+                    ml_conf = pr["confidence"]
+        except Exception:
+            pass
+        # ambil param optimal utk regime tsb (falls back ke default)
+        from core.ml.parameter_optimizer import params_for_regime, load_params
+        ml_params = params_for_regime(regime_ml, load_params())
+
+
         # 1. SCREENER — cari setup terbaik dari banyak token (HFT scale: scan 150, top 16)
-        top = screen(self.market, self.s, top_n=16, max_scan=150, mock=self.mock)
+        # max_workers=16 -> scan paralel (scaling ke 50+ koin tanpa latency scalping)
+        top = screen(self.market, self.s, top_n=16, max_scan=150, mock=self.mock, max_workers=16)
         best = top[0] if top else None
         symbol = best["symbol"] if best else ex.get("symbol", "BTC/USDT")
 
@@ -366,6 +394,37 @@ class Orchestrator:
             sig = self.leviathan.generate_signal(sdf, slast)
             if not sig or sig.get("side") not in ("buy", "sell"):
                 continue
+            # 0c. HYBRID GATE (Learning Agent B): Convinced Score > 85%
+            # Gabungan TEKNIKAL + SENTIMEN + ML PROB. Hanya trade yg sangat
+            # yakin yg lolos ke Execution Agent (instruksi Hybrid B).
+            try:
+                from core.ml.convinced_score import get_scorer
+                sfilter, _ = SignalFilter.load()
+                ema_gap = 0.0
+                if "ema50" in sdf.columns and "ema200" in sdf.columns:
+                    e50 = float(sdf.iloc[-1]["ema50"]); e200 = float(sdf.iloc[-1]["ema200"])
+                    ema_gap = (e50 - e200) / max(e200, 1e-9) if e200 else 0.0
+                fgv = ((fg or {}).get("value", 50) if isinstance(fg, dict) else 50)
+                setup_feat = {
+                    "rr": float(sig.get("reward_risk", sig.get("conviction", 0.5) * 2.5)),
+                    "conviction": float(sig.get("conviction", 0.5)),
+                    "rsi": float(sdf.iloc[-1]["rsi14"]) if "rsi14" in sdf.columns else 50.0,
+                    "atr_pct": float(sdf.iloc[-1]["atr14"] / max(sdf.iloc[-1]["close"], 1e-9)) if "atr14" in sdf.columns else 0.03,
+                    "ema_gap": ema_gap,
+                    "fg_norm": fgv / 100.0,
+                    "regime_code": {"trend_up": 0.0, "trend_down": 1.0, "range": 2.0,
+                                    "volatile": 3.0, "panic": 4.0}.get(regime_ml, 2.0),
+                    "side_code": 1.0 if sig.get("side") == "buy" else 0.0,
+                }
+                scorer = get_scorer(threshold=0.85)
+                cs = scorer.score(sdf, sig, fg_value=fgv, psych=psych,
+                                 sfilter=sfilter, setup_feat=setup_feat)
+                if not cs["passes"]:
+                    fill_info += f"\nSKIP CONVINCED {sym}: score {cs['score_pct']}% < {cs['threshold_pct']}% (T{s['technical']} S{s['sentiment']} ML{s['ml']})"
+                    continue
+            except Exception:
+                # fail-open: kalau scorer error, tetap lanjut ke gate NYX (jgn blokir buta)
+                pass
             # filter sentimen eksternal (bukan RSI/MA) — AGRESIF: cuma tolak
             # long kalau F&G < 15 (panic total), biar tdk lewat SKIP saat fear wajar
             if not self.vega.sentiment_ok(psych, sig.get("side")):

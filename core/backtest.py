@@ -101,8 +101,45 @@ def _metrics(trades: list) -> dict:
     }
 
 
-def run(market, settings: dict, symbols: list, limit: int = 500, testnet: bool = False, save: bool = True) -> dict:
-    """Backtest beberapa token. Return dict per-symbol + aggregate."""
+def run(market, settings: dict, symbols: list, limit: int = 500, testnet: bool = False, save: bool = True,
+        mc: bool = True, wf: bool = True,
+        fee_pct: float = 0.001, slippage_pct: float = 0.0005, spread_pct: float = 0.0003) -> dict:
+    """Backtest beberapa token. Return dict per-symbol + aggregate + MONTE CARLO.
+    mc=True -> jalankan Monte Carlo + walk-forward (evaluasi statistik nyata).
+    """
+    from core.montecarlo import simulate_with_costs, monte_carlo, walk_forward
+    sg = settings.get("signal", {})
+    rk = settings.get("risk", {})
+    out = {}
+    all_trades = []
+    for sym in symbols:
+        try:
+            df = add_indicators(market.ohlcv(sym, settings.get("exchange", {}).get("timeframe", "1h"), limit))
+            if df is None or df.empty or "rsi14" not in df.columns:
+                continue
+            # simulator DENGAN slippage + spread (realistis)
+            tr = simulate_with_costs(df, sg, rk, fee_pct, slippage_pct, spread_pct)
+            m = _metrics(tr)
+            # Monte Carlo per token (jika mc aktif & cukup trade)
+            if mc and len(tr) >= 10:
+                m["monte_carlo"] = monte_carlo(tr, n_sims=500)
+            if wf and len(df) >= 600:
+                m["walk_forward"] = walk_forward(df, sg, rk, n_folds=3,
+                                                 fee_pct=fee_pct, slippage_pct=slippage_pct,
+                                                 spread_pct=spread_pct)
+            out[sym] = m
+            all_trades.extend(tr)
+        except Exception as e:
+            out[sym] = {"error": str(e)}
+    out["__AGGREGATE__"] = _metrics(all_trades)
+    if mc and len(all_trades) >= 10:
+        out["__AGGREGATE__"]["monte_carlo"] = monte_carlo(all_trades, n_sims=1000)
+    if save:
+        import os, json
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/backtest_report.json", "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
+    return out
     sg = settings.get("signal", {})
     rk = settings.get("risk", {})
     out = {}

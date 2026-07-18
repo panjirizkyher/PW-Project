@@ -113,22 +113,43 @@ def list_symbols(market, quote: str = "USDT", min_usdt_vol: float = 5_000_000.0)
 
 
 def screen(market, settings: dict, top_n: int = 3, max_scan: int = 50,
-           mock: bool = False) -> list:
+           mock: bool = False, max_workers: int = 8) -> list:
     """
     Return list dict: [{symbol, score, rsi, side_bias}, ...] terurut skor tertinggi.
     side_bias: 'buy'/'sell'/'neutral' dari RSI.
+    Scaling (instruksi B): scan paralel via ThreadPoolWorker -> throughput tinggi
+    saat jumlah aset 12->50 (cegah latency scalping). FEAR&GREED di-cache 1x call.
     """
+    import time as _t
     sg = settings.get("signal", {})
     rsi_o = float(sg.get("rsi_oversold", 35.0))
     rsi_b = float(sg.get("rsi_overbought", 65.0))
     if mock:
-        # token contoh untuk offline test
-        syms = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT"]
+        syms = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT",
+                "ADA/USDT", "DOGE/USDT", "AVAX/USDT", "LINK/USDT", "DOT/USDT",
+                "MATIC/USDT", "LTC/USDT", "TRX/USDT", "ATOM/USDT", "UNI/USDT",
+                "NEAR/USDT", "APT/USDT", "FIL/USDT", "ARB/USDT", "OP/USDT",
+                "INJ/USDT", "SUI/USDT", "TIA/USDT", "SEI/USDT", "RNDR/USDT",
+                "FET/USDT", "GRT/USDT", "ALGO/USDT", "SAND/USDT", "AXS/USDT",
+                "THETA/USDT", "EGLD/USDT", "FLOW/USDT", "CHZ/USDT", "CRV/USDT",
+                "LDO/USDT", "STX/USDT", "MKR/USDT", "AAVE/USDT", "COMP/USDT",
+                "SNX/USDT", "YFI/USDT", "SUSHI/USDT", "1INCH/USDT", "ENJ/USDT",
+                "BAT/USDT", "ZEC/USDT", "DASH/USDT", "XTZ/USDT", "EOS/USDT"]
     else:
         syms = list_symbols(market)[:max_scan] or ["BTC/USDT"]
 
-    results = []
-    for sym in syms:
+    # FEAR&GREED di-cache 1x (hindari N call)
+    _fg_cache = {}
+    def fg_bonus():
+        if "fg" in _fg_cache:
+            return _fg_cache["fg"]
+        try:
+            _fg_cache["fg"] = fear_greed()
+        except Exception:
+            _fg_cache["fg"] = None
+        return _fg_cache["fg"]
+
+    def _score_one(sym):
         try:
             if mock:
                 from data.mock import mock_ohlcv
@@ -136,13 +157,28 @@ def screen(market, settings: dict, top_n: int = 3, max_scan: int = 50,
             else:
                 df = add_indicators(market.ohlcv(sym, settings.get("exchange", {}).get("timeframe", "1h"), 200))
             if df is None or df.empty:
-                continue
+                return None
             score = score_symbol(df, rsi_o, rsi_b)
             rsi = float(df.iloc[-1]["rsi14"])
             side = "buy" if rsi <= rsi_o else ("sell" if rsi >= rsi_b else "neutral")
-            results.append({"symbol": sym, "score": score, "rsi": round(rsi, 2), "side_bias": side})
+            return {"symbol": sym, "score": score, "rsi": round(rsi, 2), "side_bias": side}
         except Exception:
-            continue
+            return None
+
+    # PARALLEL scan (thread pool -> overlap network I/O, throughput naik)
+    results = []
+    if max_workers > 1 and len(syms) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(syms))) as ex:
+            for r in ex.map(_score_one, syms):
+                if r:
+                    results.append(r)
+    else:
+        for s in syms:
+            r = _score_one(s)
+            if r:
+                results.append(r)
 
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:top_n]
+
