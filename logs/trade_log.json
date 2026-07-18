@@ -1,0 +1,1 @@
+[{"ts": 1784338692, "symbol": "BTC/USDT", "side": "buy", "strategy": "rsi_reversion", "pnl": 0.0}, {"ts": 1784338692, "symbol": "BNB/USDT", "side": "buy", "strategy": "rsi_reversion", "pnl": 0.0}, {"ts": 1784338692, "symbol": "XRP/USDT", "side": "sell", "strategy": "breakout", "pnl": 0.0}]

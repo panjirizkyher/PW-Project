@@ -18,6 +18,7 @@ from core.state import load_state, save_state, reset_day_if_new
 from core.screener import screen
 from core.market_snapshot import snapshot as market_snapshot
 from core.account import snapshot as account_snapshot
+from core.consensus import decide as decide_consensus, summarize as consensus_summarize
 from data.onchain import fear_greed
 from data.macro import next_events
 from data.sentiment import market_psychology, coingecko_global, coingecko_trending
@@ -76,6 +77,37 @@ class Orchestrator:
             # tanpa key, fallback paper agar tidak crash
             return PaperExecutor()
         return ExchangeExecutor(self.s["exchange"]["id"], ak, sk, testnet=testnet)
+
+    def _load_lessons(self, n: int = 5) -> str:
+        """Memory sederhana (adaptasi TradingAgents 'lessons from prior decisions').
+        Baca n trade terakhir dari logs/trade_log.json -> ringkas pelajaran."""
+        try:
+            import json, os
+            p = "logs/trade_log.json"
+            if not os.path.exists(p):
+                return ""
+            arr = json.load(open(p))
+            recent = arr[-n:]
+            lines = []
+            for t in recent:
+                pnl = t.get("pnl", 0.0)
+                tag = "WIN" if pnl > 0 else "LOSS"
+                lines.append(f"{tag} {t.get('symbol')} {t.get('strategy')} pnl={pnl:+.1f}")
+            return "; ".join(lines)
+        except Exception:
+            return ""
+
+    def _record_trade(self, symbol, side, strategy, pnl):
+        """Simpan outcome tiap trade -> logs/trade_log.json (memory)."""
+        try:
+            import json, os
+            p = "logs/trade_log.json"
+            arr = json.load(open(p)) if os.path.exists(p) else []
+            arr.append({"ts": int(__import__("time").time()), "symbol": symbol,
+                        "side": side, "strategy": strategy, "pnl": round(float(pnl), 2)})
+            json.dump(arr[-200:], open(p, "w"))
+        except Exception:
+            pass
 
     def run(self) -> str:
         out = self.run_structured()
@@ -159,6 +191,49 @@ class Orchestrator:
         trade_action = "hold"
         exited_this_cycle = False
 
+        # === CONSENSUS (adaptasi TradingAgents: bull/bear debate + risk voices + PM) ===
+        # votes dibangun dari output agent yg SUDA ada (deterministik, no LLM)
+        analyst_votes = []
+        # Helios = bull voice (trend)
+        if helios.get("bias") == "Bullish":
+            analyst_votes.append({"name": "HELIOS", "view": "bull", "weight": 0.6,
+                                  "note": helios.get("text", "")[:80]})
+        elif helios.get("bias") == "Bearish":
+            analyst_votes.append({"name": "HELIOS", "view": "bear", "weight": 0.6,
+                                  "note": helios.get("text", "")[:80]})
+        else:
+            analyst_votes.append({"name": "HELIOS", "view": "hold", "weight": 0.3, "note": "netral"})
+        # Vega = bear/quant voice (skew/sharpe)
+        vs = self.vega.stats(df)
+        if vs.get("sharpe", 0) < -1 or vs.get("skew", 0) < -0.5:
+            analyst_votes.append({"name": "VEGA", "view": "bear", "weight": 0.5,
+                                  "note": f"sharpe {vs['sharpe']} skew {vs['skew']} (ekor kiri)"})
+        else:
+            analyst_votes.append({"name": "VEGA", "view": "bull", "weight": 0.4,
+                                  "note": f"sharpe {vs['sharpe']} vol {vs['vol']}"})
+        # Chronos regime -> bull/bear
+        if regime == "risk_on":
+            analyst_votes.append({"name": "CHRONOS", "view": "bull", "weight": 0.4,
+                                  "note": f"regim {regime}"})
+        elif regime == "risk_off":
+            analyst_votes.append({"name": "CHRONOS", "view": "bear", "weight": 0.4,
+                                  "note": f"regim {regime}"})
+
+        # risk voices
+        risk_votes = []
+        # Nyx = conservative (selalu hati-hati)
+        risk_votes.append({"name": "NYX", "view": "bear", "weight": 0.5,
+                          "note": "R:R>=2, 1% risk, circuit breaker"})
+        # Leviathan = aggressive (mau masuk)
+        risk_votes.append({"name": "LEVIATHAN", "view": "bull", "weight": 0.4,
+                          "note": "signal engine ingin entry"})
+        # Atlas = neutral PM (netral secara default)
+        risk_votes.append({"name": "ATLAS", "view": "hold", "weight": 0.3, "note": "head strategist"})
+
+        # lessons dari trade log (memory sederhana)
+        lessons = self._load_lessons()
+        consensus = decide_consensus(analyst_votes, risk_votes, lessons)
+        atlas_txt_cm = consensus_summarize(consensus)
         # 8. PHOENIX (recovery) — cek fase drawdown
         phoenix = self.phoenix.assess(self.state.get("equity", 0.0),
                                        self.state.get("realized_pnl", 0.0))
@@ -238,16 +313,17 @@ class Orchestrator:
             trade_ok, rr_msg = self.risk.validate(t)
             can_open, open_msg = self.risk.can_open_new(len(self.state["positions"]))
             if trade_ok and can_open:
-                qty = self.risk.position_size(t)
+                qty = self.risk.position_size(t) * consensus.get("sizing_mult", 1.0)
                 if qty <= 0:
                     continue
                 fill = self.exec.execute(sym, sig["side"], qty, sig["entry"])
+                self._record_trade(sym, sig["side"], sig.get("strategy", "?"), 0.0)
                 self.state["positions"].append({
                     "symbol": sym, "side": sig["side"], "qty": qty,
                     "entry": fill.price, "stop_loss": sig["stop_loss"],
                     "take_profit": sig["take_profit"], "bars": 0,
                 })
-                fill_info += f"\n{'PAPER' if fill.paper else 'LIVE'} FILL: {sig['side']} {qty:.6f} {sym} @ {fill.price:.2f} ({sig.get('strategy','?')})"
+                fill_info += f"\n{'PAPER' if fill.paper else 'LIVE'} FILL: {sig['side']} {qty:.6f} {sym} @ {fill.price:.2f} ({sig.get('strategy','?')}) [consensus conf={consensus.get('confidence')}]"
                 trade_action = "entry"
                 new_entries += 1
 
@@ -274,7 +350,7 @@ class Orchestrator:
             "balance": self.risk.balance,
             "open_positions": len(self.state.get("positions", [])),
             "max_open": self.risk.max_open,
-        })
+        }) + "\n\n" + atlas_txt_cm
 
         # 8. RENDER BRIEFING
         eleanor_txt = self.nyx.comment(
