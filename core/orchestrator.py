@@ -315,7 +315,12 @@ class Orchestrator:
             if reason is None and (pos.get("bars", 0) + 1) >= max_bars:
                 reason = "TIMEOUT"
             if reason:
-                fill = self.exec.close(psym, exit_side, pos["qty"], pl)
+                try:
+                    fill = self.exec.close(psym, exit_side, pos["qty"], pl)
+                except PermissionError as e:
+                    self._log_event(f"EXIT_BLOCKED {psym}: {e}")
+                    fill_info += f"\nTIDAK EXIT {psym}: {e}"
+                    continue
                 pnl = (fill.price - pos["entry"]) * pos["qty"] if pos["side"] == "buy" else (pos["entry"] - fill.price) * pos["qty"]
                 self.state["equity"] += pnl
                 self.state["realized_pnl"] += pnl
@@ -361,7 +366,12 @@ class Orchestrator:
                 qty = self.risk.position_size(t) * consensus.get("sizing_mult", 1.0)
                 if qty <= 0:
                     continue
-                fill = self.exec.execute(sym, sig["side"], qty, sig["entry"])
+                try:
+                    fill = self.exec.execute(sym, sig["side"], qty, sig["entry"])
+                except PermissionError as e:
+                    fill_info += f"\nTIDAK TRADE {sym}: {e}"
+                    self._log_event(f"TRADE_BLOCKED {sym}: {e}")
+                    continue
                 self._record_trade(sym, sig["side"], sig.get("strategy", "?"), 0.0)
                 self.state["positions"].append({
                     "symbol": sym, "side": sig["side"], "qty": qty,

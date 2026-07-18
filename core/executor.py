@@ -63,12 +63,25 @@ class ExchangeExecutor:
         return float(self.ex.fetch_ticker(symbol)["last"])
 
     def execute(self, symbol, side, qty, price=None) -> Fill:
-        order = self.ex.create_order(symbol, "market", side, qty, None)
+        try:
+            order = self.ex.create_order(symbol, "market", side, qty, None)
+        except ccxt.AuthenticationError as e:
+            raise PermissionError(
+                "API key BELUM punya izin Spot Trading (Binance -2015). "
+                "Buka Binance > API Management > Edit restrictions > centang "
+                "'Enable Spot & Margin Trading' (Withdrawals tetap OFF)."
+            ) from e
         fill_price = float(order.get("average") or order.get("price") or self.last_price(symbol))
         return Fill(symbol, side, qty, fill_price, paper=False)
 
     def close(self, symbol, side, qty, price=None) -> Fill:
         # side di sini = arah PENUTUPAN (kebalikan posisi)
-        order = self.ex.create_order(symbol, "market", side, qty, None)
+        try:
+            order = self.ex.create_order(symbol, "market", side, qty, None)
+        except ccxt.AuthenticationError as e:
+            raise PermissionError(
+                "API key BELUM punya izin Spot Trading (Binance -2015). "
+                "Aktifkan 'Enable Spot & Margin Trading' di Binance API Management."
+            ) from e
         fill_price = float(order.get("average") or order.get("price") or self.last_price(symbol))
         return Fill(symbol, side, qty, fill_price, paper=False)
