@@ -34,6 +34,7 @@ from agents.leviathan import Leviathan
 from core.ml.regime_detector import RegimeDetector, _feat_row
 from core.ml.signal_filter import SignalFilter
 from notify.telegram import send
+from notify.agent import trade_alert, risk_warning, maybe_daily_report
 
 
 class Orchestrator:
@@ -369,6 +370,12 @@ class Orchestrator:
                 self.state["realized_pnl"] += pnl
                 self.state["positions"].remove(pos)
                 fill_info += f"\nEXIT {reason}: {exit_side} {pos['qty']:.6f} {psym} @ {fill.price:.2f} | PnL {pnl:+.2f}"
+                # NOTIFY: Trade Alert EXIT + P/L detail (instan ke HP)
+                try:
+                    trade_alert("exit", psym, exit_side, fill.price, pos["qty"],
+                                strategy=pos.get("strategy", "?"), pnl=pnl, settings=self.s)
+                except Exception:
+                    pass
                 trade_action = f"exit_{reason.lower()}"
                 exited_this_cycle = True
                 self.breaker.check(self.risk.daily_loss_breached(self.state["realized_pnl"]))
@@ -458,6 +465,12 @@ class Orchestrator:
                     "last": fill.price,
                 })
                 fill_info += f"\n{'PAPER' if fill.paper else 'LIVE'} FILL: {sig['side']} {qty:.6f} {sym} @ {fill.price:.2f} ({sig.get('strategy','?')}) [consensus conf={consensus.get('confidence')}]"
+                # NOTIFY: Trade Alert ENTRY (instan ke HP)
+                try:
+                    trade_alert("entry", sym, sig["side"], fill.price, qty,
+                                strategy=sig.get("strategy", "?"), settings=self.s)
+                except Exception:
+                    pass
                 trade_action = "entry"
                 new_entries += 1
 
@@ -493,6 +506,23 @@ class Orchestrator:
             from core.equity import record as eq_record
             eq_record(self.state.get("equity", 0), self.state.get("realized_pnl", 0),
                       len(self.state.get("positions", [])), int(time.time()))
+        except Exception:
+            pass
+
+        # 6b. NOTIFY: Risk Warning (volatilitas ekstrem / drawdown / circuit halt)
+        try:
+            eq_now = float(self.state.get("equity", 0.0))
+            base = float(self.risk.balance)
+            dd_pct = (base - eq_now) / base * 100.0 if base > 0 else 0.0
+            if self.breaker.halted:
+                risk_warning("⛔ CIRCUIT BREAKER HALT",
+                             f"Bot dihentikan sementara. Equity {eq_now:,.2f}", self.s)
+            elif dd_pct >= float(self.s.get("risk", {}).get("max_daily_loss_pct", 12.0)) * 0.7:
+                risk_warning("📉 DRAWDOWN TINGGI",
+                             f"Equity {eq_now:,.2f} | DD {dd_pct:.1f}%", self.s)
+            elif regime_ml in ("volatile", "panic"):
+                risk_warning("🌪️ VOLATILITAS EKSTRIM",
+                             f"Regime: {regime_ml.upper()} | DD {dd_pct:.1f}%", self.s)
         except Exception:
             pass
 
@@ -550,6 +580,41 @@ class Orchestrator:
         }
         self._write_json(out)
         send(briefing_text, self.s)
+
+        # 9. NOTIFY: Daily Report (1x/hari, dari Learning Agent)
+        try:
+            def _compute_daily_stats():
+                st = self.state
+                trades = []
+                try:
+                    trades = json.load(open("logs/trade_log.json"))
+                except Exception:
+                    trades = []
+                pnls = [t.get("pnl", 0.0) for t in trades if "pnl" in t]
+                best = max(pnls) if pnls else 0.0
+                worst = min(pnls) if pnls else 0.0
+                win = sum(1 for p in pnls if p > 0)
+                wr = (win / len(pnls) * 100.0) if pnls else 0.0
+                learn_note = ""
+                try:
+                    lr = self.phoenix.learn(
+                        feature_rows=[], regime_dfs={}, trade_log_path="logs/trade_log.json")
+                    learn_note = lr.get("advice", "") if isinstance(lr, dict) else ""
+                except Exception:
+                    learn_note = ""
+                return {
+                    "equity": float(st.get("equity", 0.0)),
+                    "realized_pnl": float(st.get("realized_pnl", 0.0)),
+                    "n_trades": len(pnls),
+                    "win_rate": round(wr, 1),
+                    "best": best, "worst": worst,
+                    "open_positions": len(st.get("positions", [])),
+                    "learning_note": learn_note,
+                }
+            maybe_daily_report(self.state, self.s, _compute_daily_stats)
+        except Exception:
+            pass
+
         # snapshot pasar (chart) + akun demo (real trades) untuk dashboard
         try:
             scan_syms = [r["symbol"] for r in top] + [symbol]
