@@ -245,7 +245,7 @@
       <div class="trades" id="open-pos"><span class="spinner">menunggu posisi…</span></div>
     </div>
     <div class="panel">
-      <h3>🔴 Closed Trades <span id="cl-count" class="ctxt" style="color:var(--dim);font-size:11px"></span></h3>
+      <h3>🔴 Trade Log <span id="cl-count" class="ctxt" style="color:var(--dim);font-size:11px"></span></h3>
       <div class="trades" id="closed-tr"><span class="spinner">menunggu trade…</span></div>
     </div>
   </div>
@@ -335,7 +335,7 @@ async function load(){
   const pe=document.getElementById('m-pnl');
   pe.textContent=(total>=0?'+':'')+'$'+Number(total).toFixed(2); pe.className='v '+cls(total);
   const sub=document.getElementById('m-pnl-sub');
-  if(sub) sub.textContent='R:'+(realized>=0?'+':'')+'$'+realized.toFixed(2)+' U:'+(unreal>=0?'+':'')+'$'+unreal.toFixed(2);
+  if(sub) sub.textContent='R(today):'+(realized>=0?'+':'')+'$'+realized.toFixed(2)+' U:'+(unreal>=0?'+':'')+'$'+unreal.toFixed(2);
   set('m-open',d.open_positions??0);
   const sig=d.signal&&d.signal.side?d.signal.side:'hold';
   const se=document.getElementById('m-signal'); se.textContent=sig.toUpperCase(); se.className='v '+actCls(sig);
@@ -492,24 +492,27 @@ async function loadAccount(){
         </div>`;
       });
     }
-    // ---- CLOSED TRADES ----
+    // ---- TRADE LOG (entry + exit) ----
     const clBox=document.getElementById('closed-tr');
     const closed=Array.isArray(tl)?tl.slice(-25).reverse():[];
-    document.getElementById('cl-count').textContent= tl&&tl.length? '('+tl.length+' total)' : '';
-    if(!closed.length){ clBox.innerHTML='<div class="empty">belum ada trade ditutup</div>'; }
+    const nExit=tl.filter(t=>(t.pnl||0)!==0).length;
+    document.getElementById('cl-count').textContent= tl&&tl.length? `(${tl.length} total · ${nExit} closed all-time)` : '';
+    if(!closed.length){ clBox.innerHTML='<div class="empty">belum ada trade</div>'; }
     else{
       clBox.innerHTML='';
       closed.forEach(t=>{
-        const pl=t.pnl||0; const cls=pl>=0?'pos':'neg'; const sign=pl>=0?'+':'';
+        const pl=t.pnl||0; const isExit=pl!==0;
+        const cls=pl>0?'pos':(pl<0?'neg':''); const sign=pl>0?'+':'';
         const ts=t.ts?new Date(t.ts).toLocaleString():'';
         const side=(t.side||'buy');
+        const badge=isExit?`<span class="sub" style="color:var(--dim)">EXIT</span>`:`<span class="sub" style="color:var(--dim)">ENTRY</span>`;
         clBox.innerHTML+=`<div class="trade ${side}">
           <div><div>${t.symbol||'?'}</div><div class="sub">${ts}</div></div>
-          <div style="text-align:right"><div class="pl ${cls}">${sign}${pl.toFixed(2)}</div><div class="sub">${(t.strategy||'')}</div></div>
+          <div style="text-align:right"><div class="pl ${cls}">${isExit?sign+pl.toFixed(2):'—'}</div><div class="sub">${(t.strategy||'')} ${badge}</div></div>
         </div>`;
       });
     }
-  }
+
 
   async function loadSentiment(){
     let d;

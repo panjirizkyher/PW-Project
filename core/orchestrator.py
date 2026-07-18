@@ -398,6 +398,8 @@ class Orchestrator:
                 pnl = (fill.price - pos["entry"]) * pos["qty"] if pos["side"] == "buy" else (pos["entry"] - fill.price) * pos["qty"]
                 self.state["equity"] += pnl
                 self.state["realized_pnl"] += pnl
+                # catat exit ke trade_log (sebelumnya cuma entry yg di-log -> count stale)
+                self._record_trade(psym, exit_side, pos.get("strategy", "?"), pnl)
                 self.state["positions"].remove(pos)
                 fill_info += f"\nEXIT {reason}: {exit_side} {pos['qty']:.6f} {psym} @ {fill.price:.2f} | PnL {pnl:+.2f}"
                 # NOTIFY: Trade Alert EXIT + P/L detail (instan ke HP)

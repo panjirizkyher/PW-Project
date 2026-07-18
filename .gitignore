@@ -4,6 +4,7 @@ config/accounts.json
 .venv/
 __pycache__/
 *.pyc
+logs/sentiment.json
 logs/audit.log
 logs/circuit_state.json
 logs/briefing.json
