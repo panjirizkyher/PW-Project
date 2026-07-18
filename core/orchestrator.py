@@ -221,8 +221,8 @@ class Orchestrator:
         chronos_txt = chronos.get("text", "") if isinstance(chronos, dict) else str(chronos)
         regime = (chronos.get("regime", "neutral") if isinstance(chronos, dict) else "neutral")
 
-        # 1. SCREENER — cari setup terbaik dari banyak token
-        top = screen(self.market, self.s, top_n=8, max_scan=50, mock=self.mock)
+        # 1. SCREENER — cari setup terbaik dari banyak token (HFT scale: scan 150, top 16)
+        top = screen(self.market, self.s, top_n=16, max_scan=150, mock=self.mock)
         best = top[0] if top else None
         symbol = best["symbol"] if best else ex.get("symbol", "BTC/USDT")
 
@@ -306,12 +306,13 @@ class Orchestrator:
             if self.mock:
                 pl = float(add_indicators(mock_ohlcv(200)).iloc[-1]["close"])
             elif self.exec.paper:
-                pl = last
+                # paper: pakai harga posisi sendiri (bukan global 'last' token lain!)
+                pl = pos.get("last") or pos.get("entry")
             else:
                 try:
                     pl = self.market.last_price(psym)
                 except Exception:
-                    pl = last
+                    pl = pos.get("last") or pos.get("entry")
             exit_side = "sell" if pos["side"] == "buy" else "buy"
             reason = None
             pos["bars"] = pos.get("bars", 0) + 1   # naikkan tiap siklus (buat timeout)
@@ -344,10 +345,10 @@ class Orchestrator:
                 exited_this_cycle = True
                 self.breaker.check(self.risk.daily_loss_breached(self.state["realized_pnl"]))
 
-        # === ENTRY — SEMUA top-N yang sinyal valid & masih bisa buka ===
+        # === ENTRY — SEMUA top-N yang sinyal valid & masih bisa buka (HFT: sampai 16) ===
         new_entries = 0
         for r in top:
-            if new_entries >= 8:
+            if new_entries >= 16:
                 break
             if len(self.state["positions"]) >= self.risk.max_open:
                 break

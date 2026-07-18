@@ -16,7 +16,7 @@ risk:
   risk_per_trade_pct: 8.0
   max_daily_loss_pct: 12.0
   min_reward_risk_ratio: 1.8
-  max_open_positions: 8
+  max_open_positions: 16
   max_total_exposure_pct: 60.0
   max_hold_bars: 120
 signal:
@@ -43,4 +43,4 @@ price_feed:
   refresh_seconds: 2
 
 schedule:
-  run_every_minutes: 2
+  run_every_minutes: 1
