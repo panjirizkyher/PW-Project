@@ -109,6 +109,12 @@
   .trade .pl{font-weight:700}
   .trade .pl.pos{color:var(--buy)} .trade .pl.neg{color:var(--sell)}
   .trade .sub{color:var(--dim);font-size:10px}
+  .sent{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+  .sent .head{font-weight:700;margin-bottom:6px;font-size:13px}
+  .sent .sc{font-size:22px;font-weight:800}
+  .sent .sc.pos{color:var(--buy)} .sent .sc.neg{color:var(--sell)}
+  .sent .news{font-size:11px;color:var(--dim);margin-top:4px;line-height:1.4}
+  .sent .news b{color:var(--fg,#fff)} .sent .news i{color:var(--sell)}
   .empty{color:var(--dim);font-size:12px;font-style:italic}
   /* ===== REALTIME TICK STRIP ===== */
   .tick{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
@@ -241,6 +247,13 @@
     <div class="panel">
       <h3>🔴 Closed Trades <span id="cl-count" class="ctxt" style="color:var(--dim);font-size:11px"></span></h3>
       <div class="trades" id="closed-tr"><span class="spinner">menunggu trade…</span></div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <div class="panel" style="grid-column:1/-1">
+      <h3>📰 Sentiment & News <span id="sent-ts" class="ctxt" style="color:var(--dim);font-size:11px"></span></h3>
+      <div class="sent" id="sent"><span class="spinner">memuat sentimen…</span></div>
     </div>
   </div>
 
@@ -498,6 +511,26 @@ async function loadAccount(){
     }
   }
 
+  async function loadSentiment(){
+    let d;
+    try{ d=await (await fetch('logs/sentiment.json?t='+Date.now())).json(); }catch(e){ return; }
+    const box=document.getElementById('sent'); if(!box) return;
+    const p=d.sentiment||d.psych||{}; const fg=d.fg||{};
+    const score=p.score_0_100??50;
+    const cls=score>=50?'pos':'neg';
+    const fgs=fg.value??'—';
+    let h=`<div class="card" style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      <div class="head">Market Sentiment (VADER) <span class="sub">FG ${fgs}</span></div>
+      <div class="sc ${cls}">${score}</div>
+      <div class="sub">${p.n_articles||0} artikel · ${p.n_relevant||0} relevan</div>
+    </div>`;
+    (p.top_positive||[]).slice(0,3).forEach(t=>{ h+=`<div class="news"><b>▲ ${t}</b></div>`; });
+    (p.top_negative||[]).slice(0,3).forEach(t=>{ h+=`<div class="news"><i>▼ ${t}</i></div>`; });
+    box.innerHTML=h;
+    const ts=document.getElementById('sent-ts');
+    if(ts) ts.textContent = d.ts? new Date(d.ts*1000).toLocaleTimeString() : '';
+  }
+
   function drawEquity(){
     let arr;
     try{ arr=JSON.parse(sessionStorage.getItem('eq_cache')||'null'); }catch(e){ arr=null; }
@@ -693,6 +726,7 @@ loadMarkets(); setInterval(loadMarkets,15000);
 loadControls(); setInterval(loadControls,30000);
 loadEquity(); setInterval(loadEquity,10000);
 loadTrades(); setInterval(loadTrades,5000);
+loadSentiment(); setInterval(loadSentiment,30000);
 </script>
 </body>
 </html>

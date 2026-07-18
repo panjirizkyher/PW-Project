@@ -360,6 +360,11 @@ def main():
     mock = "--mock" in sys.argv
     orch = Orchestrator(settings, mock=mock)
     interval = int(settings.get("schedule", {}).get("run_every_minutes", 60)) * 60
+    # HFT: cycle per-tick (default 2s) override menit-scale
+    hft = settings.get("hft", {})
+    cycle_s = int(hft.get("cycle_seconds", 0)) if isinstance(hft, dict) else 0
+    if cycle_s > 0:
+        interval = cycle_s
     port = int(os.getenv("PEWE_PORT") or settings.get("dashboard", {}).get("port", 8000))
     Handler.orch = orch
     Handler.settings = settings

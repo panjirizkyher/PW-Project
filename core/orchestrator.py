@@ -8,6 +8,7 @@ Menjalankan alur kerja tim 8 agent:
 from __future__ import annotations
 import json
 import os
+import time
 from datetime import datetime
 from core.llm_client import LLMClient
 from core.indicators import add_indicators
@@ -203,6 +204,26 @@ class Orchestrator:
             fg = fear_greed() if self.is_crypto else {}
             try:
                 psych = market_psychology() if self.is_crypto else {}
+                # full sentiment (VADER + RSS headlines) untuk dashboard + audit
+                sent_full = {}
+                try:
+                    from core.ml.sentiment import news_sentiment
+                    sent_full = news_sentiment() if self.is_crypto else {}
+                except Exception:
+                    pass
+                try:
+                    import json as _js
+                    os.makedirs("logs", exist_ok=True)
+                    _js.dump({"ts": int(time.time()), "psych": psych,
+                              "sentiment": sent_full, "fg": fg},
+                             open("logs/sentiment.json", "w"), ensure_ascii=False)
+                except Exception:
+                    pass
+                # kirim ke agent bertugas (Vega/Convinced) — sudah lewat `psych` arg
+                self._log_event(f"SENTIMENT: score={sent_full.get('score_0_100')} "
+                                f"n_articles={sent_full.get('n_articles')} "
+                                f"pos={sent_full.get('top_positive', [])[:2]} "
+                                f"neg={sent_full.get('top_negative', [])[:2]}")
             except Exception:
                 psych = {}
             try:
@@ -249,9 +270,18 @@ class Orchestrator:
         ml_params = params_for_regime(regime_ml, load_params())
 
 
-        # 1. SCREENER — cari setup terbaik dari banyak token (HFT scale: scan 150, top 16)
-        # max_workers=16 -> scan paralel (scaling ke 50+ koin tanpa latency scalping)
-        top = screen(self.market, self.s, top_n=16, max_scan=150, mock=self.mock, max_workers=16)
+        # 1. SCREENER — cari setup terbaik dari banyak token (HFT scale: scan, top 16)
+        # Cache screener 30s biar cycle 2s tdk spam Binance (anti rate-limit).
+        cache_s = int((self.s.get("hft", {}) or {}).get("screener_cache_seconds", 30))
+        now_ts = int(time.time())
+        if getattr(self, "_scan_cache", None) and (now_ts - self._scan_cache_ts) < cache_s:
+            top = self._scan_cache
+        else:
+            max_scan = int((self.s.get("hft", {}) or {}).get("max_scan", 150))
+            top = screen(self.market, self.s, top_n=16, max_scan=max_scan,
+                         mock=self.mock, max_workers=16)
+            self._scan_cache = top
+            self._scan_cache_ts = now_ts
         best = top[0] if top else None
         symbol = best["symbol"] if best else ex.get("symbol", "BTC/USDT")
 
@@ -503,7 +533,6 @@ class Orchestrator:
 
         # equity curve point (pantau PnL)
         try:
-            import time
             from core.equity import record as eq_record
             eq_record(self.state.get("equity", 0), self.state.get("realized_pnl", 0),
                       len(self.state.get("positions", [])), int(time.time()))
