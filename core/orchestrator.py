@@ -407,18 +407,21 @@ class Orchestrator:
         import time as _t
         self.state["last_cycle_ts"] = int(_t.time())
 
-        # recalc equity agar wajar (bukan ngaco negatif):
+        # recalc equity agar wajar (bukan ngaco):
         # equity = base_balance + realized_pnl + sum(unrealized per posisi)
+        # pakai harga LIVE (market.last_price), bukan pos["last"] yg stale
         try:
             base = float(self.risk.balance)
             unreal = 0.0
             for pos in self.state.get("positions", []):
-                # unrealized = (last - entry) * qty  (buy) / (entry - last) * qty (sell)
-                p = pos.get("last", pos.get("entry", 0))
+                try:
+                    lp = float(self.market.last_price(pos["symbol"]))
+                except Exception:
+                    lp = pos.get("last", pos.get("entry", 0))
                 if pos["side"] == "buy":
-                    unreal += (p - pos["entry"]) * pos["qty"]
+                    unreal += (lp - pos["entry"]) * pos["qty"]
                 else:
-                    unreal += (pos["entry"] - p) * pos["qty"]
+                    unreal += (pos["entry"] - lp) * pos["qty"]
             self.state["equity"] = base + float(self.state.get("realized_pnl", 0.0)) + unreal
         except Exception:
             pass
