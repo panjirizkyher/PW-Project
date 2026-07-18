@@ -68,11 +68,20 @@ class Orchestrator:
         mode = self.mode
         if mode in ("paper", "backtest"):
             return PaperExecutor()
-        # demo (testnet) atau live -> butuh API key dari env
-        key_map = self.s.get("api_keys", {}).get(mode, {})
-        ak = os.environ.get(key_map.get("key_env", ""), "")
-        sk = os.environ.get(key_map.get("secret_env", ""), "")
+        # demo (testnet) atau live -> cek akun aktif dulu, fallback ke env (settings)
+        ak = sk = ""
         testnet = (mode == "demo")
+        try:
+            from core.accounts import active_account
+            acc = active_account()
+            if acc and acc.get("mode") == mode:
+                ak, sk = acc.get("key", ""), acc.get("secret", "")
+        except Exception:
+            pass
+        if not ak or not sk:
+            key_map = self.s.get("api_keys", {}).get(mode, {})
+            ak = os.environ.get(key_map.get("key_env", ""), "")
+            sk = os.environ.get(key_map.get("secret_env", ""), "")
         if not ak or not sk:
             # tanpa key, fallback paper agar tidak crash
             return PaperExecutor()

@@ -17,6 +17,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 from core.env_loader import load_env
 from core.orchestrator import Orchestrator
+from core.accounts import load as acc_load, masked as acc_masked, add as acc_add, \
+    set_active as acc_set_active, delete as acc_delete
 
 
 def load_settings(path: str = "config/settings.yaml") -> dict:
@@ -112,6 +114,9 @@ class Handler(SimpleHTTPRequestHandler):
                 editable = {k: get_nested(Handler.settings, k) for k in EDITABLE}
                 self._send(200, {"editable": editable, "mode": Handler.settings.get("mode")})
                 return
+            if self.path.startswith("/api/accounts"):
+                self._send(200, acc_masked())
+                return
             self._send(404, {"ok": False})
             return
         # inject token ke dashboard biar API jalan dari mana aja
@@ -175,7 +180,47 @@ class Handler(SimpleHTTPRequestHandler):
             if self.path.startswith("/api/keys"):
                 self._handle_save_keys()
                 return
+            if self.path.startswith("/api/accounts"):
+                self._handle_accounts()
+                return
         self._send(404, {"ok": False})
+
+    def _handle_accounts(self):
+        """Multi-Account Manager API.
+        action: 'add' (name,mode,key,secret) | 'select' (name) | 'delete' (name)
+        KEAMANAN: secret TIDAK pernah di-echo (masked). Tdk ada password Binance."""
+        try:
+            ln = int(self.headers.get("Content-Length", 0))
+            raw = json.loads(self.rfile.read(ln) or b"{}")
+        except Exception as e:
+            self._send(400, {"ok": False, "error": str(e)})
+            return
+        action = raw.get("action", "list")
+        try:
+            if action == "add":
+                name = (raw.get("name") or "").strip()
+                mode = raw.get("mode", "live")
+                key = (raw.get("key") or "").strip()
+                secret = (raw.get("secret") or "").strip()
+                if not name or mode not in ("demo", "live") or len(key) < 10 or len(secret) < 10:
+                    self._send(400, {"ok": False, "error": "nama/mode/key/secret tidak valid"})
+                    return
+                acc_add(name, mode, key, secret)
+                acc_set_active(name)
+                self._send(200, {"ok": True, "msg": f"akun '{name}' ditambah & aktif",
+                                "accounts": acc_masked()})
+            elif action == "select":
+                acc_set_active(raw.get("name", ""))
+                self._send(200, {"ok": True, "msg": "akun aktif diubah",
+                                "accounts": acc_masked()})
+            elif action == "delete":
+                acc_delete(raw.get("name", ""))
+                self._send(200, {"ok": True, "msg": "akun dihapus",
+                                "accounts": acc_masked()})
+            else:
+                self._send(200, {"ok": True, "accounts": acc_masked()})
+        except Exception as e:
+            self._send(500, {"ok": False, "error": str(e)})
 
     def _handle_save_keys(self):
         """Terima API key Binance dari form login (dashboard).

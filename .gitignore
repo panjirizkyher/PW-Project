@@ -1,5 +1,6 @@
 # JANGAN commit file ini — berisi secret!
 config/.env
+config/accounts.json
 .venv/
 __pycache__/
 *.pyc

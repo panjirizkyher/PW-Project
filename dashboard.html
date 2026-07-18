@@ -146,6 +146,15 @@
   .panel.login code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace}
   .keys-warn{font-size:11px;color:#f87171;margin-top:8px;white-space:pre-wrap;line-height:1.5}
   .keys-warn.ok{color:#34d399}
+  .acct-list{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+  .acct-row{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .acct-row.active{border-color:var(--marcus,#fbbf24);background:rgba(251,191,36,.08)}
+  .acct-row .nm{font-weight:700;flex:1}
+  .acct-row .md{font-size:11px;color:var(--dim)}
+  .acct-row .msk{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim)}
+  .acct-row button{font-size:11px;padding:4px 9px;border-radius:6px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--text)}
+  .acct-row button:hover{border-color:var(--marcus,#fbbf24)}
+  .acct-row button.del:hover{border-color:#f87171;color:#f87171}
 </style>
 </head>
 <body>
@@ -188,24 +197,25 @@
   </div>
 
   <div class="panel login">
-    <h3>🔐 Login & API Key Binance <span class="saved" id="keys-saved"></span></h3>
-    <p class="warn">⚠️ Masukkan API Key + Secret Binance. Secret <b>TIDAK pernah ditampilkan</b> & hanya disimpan di <code>config/.env</code> (gitignored).
-    Gunakan key <b>IP-whitelist + TANPA izin withdraw</b>. Live trading TIDAK auto-nyala.</p>
+    <h3>🔐 Multi-Account Manager <span class="saved" id="acc-saved"></span></h3>
+    <p class="warn">⚠️ Kelola BANYAK akun Binance dari 1 dashboard. Masukkan <b>API Key + Secret</b> (bukan password akun — tidak didukung & tidak aman).
+    Secret <b>TIDAK pernah ditampilkan</b> & hanya di <code>config/accounts.json</code> (gitignored). Gunakan key <b>IP-whitelist + TANPA izin withdraw</b>. Live trading TIDAK auto-nyala.</p>
     <div class="ctl-grid">
+      <label>Nama Akun <input id="acc-name" type="text" placeholder="mis. Akun-1 / Bot-Panji" autocomplete="off"></label>
       <label>Mode
-        <select id="key-mode">
+        <select id="acc-mode">
           <option value="live">LIVE (uang asli)</option>
           <option value="demo">DEMO (testnet)</option>
         </select>
       </label>
-      <label>API Key <input id="key-api" type="text" placeholder="mis. Xq2...BinanceKey" autocomplete="off"></label>
-      <label>API Secret <input id="key-secret" type="password" placeholder="••••••••" autocomplete="off"></label>
+      <label>API Key <input id="acc-key" type="text" placeholder="Binance API Key" autocomplete="off"></label>
+      <label>API Secret <input id="acc-secret" type="password" placeholder="••••••••" autocomplete="off"></label>
     </div>
     <div class="ctl-actions">
-      <button class="btn" id="btn-keys">💾 Simpan API Key</button>
-      <span id="keys-status" class="ctxt"></span>
+      <button class="btn" id="btn-acc-add">➕ Tambah & Aktifkan Akun</button>
+      <span id="acc-status" class="ctxt"></span>
     </div>
-    <div class="keys-warn" id="keys-warn"></div>
+    <div class="acct-list" id="acc-list"><span class="spinner">memuat akun…</span></div>
   </div>
 
   <div class="eq">
@@ -556,7 +566,7 @@ document.getElementById('btn-keys').addEventListener('click',async ()=>{
       status.textContent='✅ tersimpan ('+(d.masked_key||'')+')';
       saved.textContent='✓ '+mode.toUpperCase(); saved.classList.add('show');
       setTimeout(()=>saved.classList.remove('show'),1800);
-      document.getElementById('key-secret').value=''; // jangan biarkan secret di form
+      document.getElementById('key-secret').value='';
       if(d.warning){ warn.textContent='⚠️ '+d.warning; warn.className='keys-warn'; }
       else { warn.textContent='✓ '+ (d.note||''); warn.className='keys-warn ok'; }
     } else {
@@ -564,6 +574,47 @@ document.getElementById('btn-keys').addEventListener('click',async ()=>{
     }
   }catch(e){ status.textContent='❌ '+e.message; }
 });
+document.getElementById('btn-acc-add').addEventListener('click',async ()=>{
+  const name=document.getElementById('acc-name').value.trim();
+  const mode=document.getElementById('acc-mode').value;
+  const key=document.getElementById('acc-key').value.trim();
+  const secret=document.getElementById('acc-secret').value.trim();
+  const status=document.getElementById('acc-status');
+  if(!name || !key || !secret){ status.textContent='❌ isi nama/key/secret'; return; }
+  status.textContent='⏳ menyimpan…';
+  try{
+    const r=await fetch('/api/accounts',{method:'POST',headers:apiHdrs(),
+      body:JSON.stringify({action:'add',name,mode,key,secret})});
+    const d=await r.json();
+    if(d.ok){
+      status.textContent='✅ '+d.msg;
+      document.getElementById('acc-secret').value='';
+      document.getElementById('acc-key').value='';
+      document.getElementById('acc-name').value='';
+      loadAccounts();
+    } else { status.textContent='❌ '+(d.error||'gagal'); }
+  }catch(e){ status.textContent='❌ '+e.message; }
+});
+async function loadAccounts(){
+  try{
+    const d=await (await fetch('/api/accounts',{headers:apiHdrs()})).json();
+    const el=document.getElementById('acc-list');
+    if(!d.accounts || !d.accounts.length){ el.innerHTML='<span class="spinner">belum ada akun. Tambah di atas.</span>'; return; }
+    el.innerHTML='';
+    d.accounts.forEach(a=>{
+      const row=document.createElement('div');
+      row.className='acct-row'+(a.name===d.active?' active':'');
+      row.innerHTML=`<span class="nm">${a.name}</span><span class="md">${a.mode.toUpperCase()}</span><span class="msk">${a.key_masked}</span>`;
+      const sel=document.createElement('button'); sel.textContent='Pilih';
+      sel.onclick=async ()=>{ await fetch('/api/accounts',{method:'POST',headers:apiHdrs(),body:JSON.stringify({action:'select',name:a.name})}); loadAccounts(); };
+      const del=document.createElement('button'); del.className='del'; del.textContent='Hapus';
+      del.onclick=async ()=>{ await fetch('/api/accounts',{method:'POST',headers:apiHdrs(),body:JSON.stringify({action:'delete',name:a.name})}); loadAccounts(); };
+      row.appendChild(sel); row.appendChild(del);
+      el.appendChild(row);
+    });
+  }catch(e){}
+}
+loadAccounts();
 
 // jadwal: briefing 60s, tick realtime 4s, controls 30s, equity 10s
 tick(); setInterval(tick,60000);
