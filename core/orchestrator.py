@@ -418,7 +418,7 @@ class Orchestrator:
                 }
                 scorer = get_scorer(threshold=0.85)
                 cs = scorer.score(sdf, sig, fg_value=fgv, psych=psych,
-                                 sfilter=sfilter, setup_feat=setup_feat)
+                                 sfilter=sfilter, setup_feat=setup_feat, symbol=sym)
                 if not cs["passes"]:
                     fill_info += f"\nSKIP CONVINCED {sym}: score {cs['score_pct']}% < {cs['threshold_pct']}% (T{s['technical']} S{s['sentiment']} ML{s['ml']})"
                     continue

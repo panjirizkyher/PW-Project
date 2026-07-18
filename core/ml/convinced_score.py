@@ -52,14 +52,19 @@ class ConvincedScore:
             atr_score = max(0.0, min(1.0, 1.0 - (atr_pct - 0.01) / 0.06))
         return 0.5 * rsi_score + 0.3 * ema_align + 0.2 * atr_score
 
-    def sentiment_score(self, fg_value: float, psych: dict = None) -> float:
-        """0..1 dari F&G + survei (1-100 -> 0..1, di-remap biar netral=0.5)."""
-        fg = fg_value if fg_value is not None else 50.0
-        # F&G ekstrem ke arah yg salah = rendah; tengah = netral 0.5
-        # Logika: sangat greed (>80) pas buy = hati-hati (topish); sangat fear (<20) pas buy = peluang
-        s = 0.5 + (50.0 - fg) / 100.0  # fear -> naik (buy opportunity), greed -> turun
-        s = max(0.0, min(1.0, s))
-        return s
+    def sentiment_score(self, fg_value: float, psych: dict = None, symbol: str = None) -> float:
+        """0..1 dari berita real-time (RSS+VADER) + Fear&Greed.
+        Advanced: berita mikro (pump/FUD/hack) bobot 50% kalau ada headline relevan,
+        F&G makro 50%. Fallback ke FG kalau network gagal (graceful)."""
+        try:
+            from core.ml.sentiment import get_sentiment_module
+            sm = get_sentiment_module()
+            return float(sm.combined(fg_value, symbol))
+        except Exception:
+            # fallback FG-only
+            fg = fg_value if fg_value is not None else 50.0
+            s = 0.5 + (50.0 - fg) / 100.0
+            return max(0.0, min(1.0, s))
 
     def ml_score(self, sfilter, setup_feat: dict) -> float:
         """probabilitas profit dari SignalFilter (0..1). Fallback 0.5 kalau blm trained."""
@@ -74,10 +79,10 @@ class ConvincedScore:
             return 0.5
 
     def score(self, sdf, sig, fg_value: float = 50.0, psych: dict = None,
-              sfilter=None, setup_feat: dict = None) -> dict:
+              sfilter=None, setup_feat: dict = None, symbol: str = None) -> dict:
         """Return dict: {score_pct, passes, parts}."""
         t = self.technical_score(sdf, sig)            # 0..1
-        s = self.sentiment_score(fg_value, psych)      # 0..1
+        s = self.sentiment_score(fg_value, psych, symbol)  # 0..1 (FG + News RSS)
         m = self.ml_score(sfilter, setup_feat or {})   # 0..1
         # bobot: teknikal 40%, sentimen 20%, ML 40%
         combined = 0.40 * t + 0.20 * s + 0.40 * m
