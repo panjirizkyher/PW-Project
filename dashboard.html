@@ -180,7 +180,7 @@
     <div class="stat"><span class="k">Mode</span><span class="v" id="m-mode">—</span></div>
     <div class="stat"><span class="k">Action</span><span class="v" id="m-action">—</span></div>
     <div class="stat"><span class="k">Equity</span><span class="v" id="m-equity">—</span></div>
-    <div class="stat"><span class="k">PnL</span><span class="v" id="m-pnl">—</span></div>
+    <div class="stat"><span class="k">PnL (Total)</span><span class="v" id="m-pnl">—</span><span class="sub" id="m-pnl-sub"></span></div>
     <div class="stat"><span class="k">Open</span><span class="v" id="m-open">—</span></div>
     <div class="stat"><span class="k">Signal</span><span class="v" id="m-signal">—</span></div>
     <div class="consensus">
@@ -308,8 +308,21 @@ async function load(){
   const act=d.action||'hold'; set('m-action',act.toUpperCase());
   document.getElementById('m-action').className='v '+actCls(act);
   const eq=d.equity??0; set('m-equity','$'+Number(eq).toLocaleString());
-  const pnl=d.realized_pnl||0; const pe=document.getElementById('m-pnl');
-  pe.textContent=(pnl>=0?'+':'')+'$'+Number(pnl).toFixed(2); pe.className='v '+cls(pnl);
+  // TOTAL PnL = realized (closed) + unrealized (open positions, live dari Fix A)
+  const realized=d.realized_pnl||0;
+  let unreal=0;
+  try{
+    const st=JSON.parse(sessionStorage.getItem('state_cache')||'null');
+    if(st&&st.positions) for(const p of st.positions){
+      const last=p.last||p.entry||0, entry=p.entry||0, qty=p.qty||0;
+      unreal += (last-entry)*(qty*(p.side==='buy'?1:-1));
+    }
+  }catch(e){}
+  const total=realized+unreal;
+  const pe=document.getElementById('m-pnl');
+  pe.textContent=(total>=0?'+':'')+'$'+Number(total).toFixed(2); pe.className='v '+cls(total);
+  const sub=document.getElementById('m-pnl-sub');
+  if(sub) sub.textContent='R:'+(realized>=0?'+':'')+'$'+realized.toFixed(2)+' U:'+(unreal>=0?'+':'')+'$'+unreal.toFixed(2);
   set('m-open',d.open_positions??0);
   const sig=d.signal&&d.signal.side?d.signal.side:'hold';
   const se=document.getElementById('m-signal'); se.textContent=sig.toUpperCase(); se.className='v '+actCls(sig);
