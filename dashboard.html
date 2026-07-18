@@ -212,7 +212,7 @@
       <label>API Secret <input id="acc-secret" type="password" placeholder="••••••••" autocomplete="off"></label>
     </div>
     <div class="ctl-actions">
-      <button class="btn" id="btn-acc-add">➕ Tambah & Aktifkan Akun</button>
+      <button class="btn" id="btn-acc-add" onclick="addAccount()">➕ Tambah & Aktifkan Akun</button>
       <span id="acc-status" class="ctxt"></span>
     </div>
     <div class="acct-list" id="acc-list"><span class="spinner">memuat akun…</span></div>
@@ -257,6 +257,7 @@
   </div>
 
 <script>
+window.onerror=function(m,s,l,c,e){ try{ var el=document.getElementById('acc-status'); if(el) el.textContent='⚠️ JS: '+(m||'')+' @'+l; }catch(_){} };
 const AGENTS=[
   {key:'atlas',nm:'ATLAS',rl:'Head Strategist',ava:'👑',c:'#fbbf24',tag:'Koordinator Tim'},
   {key:'chronos',nm:'CHRONOS',rl:'Macro Timing Specialist',ava:'⏳',c:'#60a5fa',tag:'FOMC · NFP · CPI · Timing'},
@@ -549,32 +550,7 @@ document.getElementById('btn-run').addEventListener('click',async ()=>{
   try{ await fetch('/api/run',{method:'POST',headers:apiHdrs()}); }catch(e){}
   const b=document.getElementById('btn-run');const t=b.textContent;b.textContent='⏳…';setTimeout(()=>b.textContent=t,2500);
 });
-document.getElementById('btn-keys').addEventListener('click',async ()=>{
-  const mode=document.getElementById('key-mode').value;
-  const key=document.getElementById('key-api').value.trim();
-  const secret=document.getElementById('key-secret').value.trim();
-  const status=document.getElementById('keys-status');
-  const warn=document.getElementById('keys-warn');
-  const saved=document.getElementById('keys-saved');
-  status.textContent='⏳ menyimpan…'; warn.textContent=''; warn.className='keys-warn';
-  if(!key || !secret){ status.textContent='❌ isi key & secret'; return; }
-  try{
-    const r=await fetch('/api/keys',{method:'POST',headers:apiHdrs(),
-      body:JSON.stringify({mode,key,secret})});
-    const d=await r.json();
-    if(d.ok){
-      status.textContent='✅ tersimpan ('+(d.masked_key||'')+')';
-      saved.textContent='✓ '+mode.toUpperCase(); saved.classList.add('show');
-      setTimeout(()=>saved.classList.remove('show'),1800);
-      document.getElementById('key-secret').value='';
-      if(d.warning){ warn.textContent='⚠️ '+d.warning; warn.className='keys-warn'; }
-      else { warn.textContent='✓ '+ (d.note||''); warn.className='keys-warn ok'; }
-    } else {
-      status.textContent='❌ '+(d.error||'gagal');
-    }
-  }catch(e){ status.textContent='❌ '+e.message; }
-});
-document.getElementById('btn-acc-add').addEventListener('click',async ()=>{
+function addAccount(){
   const name=document.getElementById('acc-name').value.trim();
   const mode=document.getElementById('acc-mode').value;
   const key=document.getElementById('acc-key').value.trim();
@@ -582,20 +558,21 @@ document.getElementById('btn-acc-add').addEventListener('click',async ()=>{
   const status=document.getElementById('acc-status');
   if(!name || !key || !secret){ status.textContent='❌ isi nama/key/secret'; return; }
   status.textContent='⏳ menyimpan…';
-  try{
-    const r=await fetch('/api/accounts',{method:'POST',headers:apiHdrs(),
-      body:JSON.stringify({action:'add',name,mode,key,secret})});
-    const d=await r.json();
-    if(r.status===401){ status.textContent='❌ token salah — buka dashboard dengan ?t=TOKEN'; return; }
-    if(d.ok){
-      status.textContent='✅ '+d.msg;
-      document.getElementById('acc-secret').value='';
-      document.getElementById('acc-key').value='';
-      document.getElementById('acc-name').value='';
-      loadAccounts();
-    } else { status.textContent='❌ '+(d.error||'gagal'); }
-  }catch(e){ status.textContent='❌ '+e.message; }
-});
+  fetch('/api/accounts',{method:'POST',headers:apiHdrs(),
+    body:JSON.stringify({action:'add',name,mode,key,secret})})
+    .then(r=>r.json().then(d=>({r,d})))
+    .then(({r,d})=>{
+      if(r.status===401){ status.textContent='❌ token salah — buka dashboard dengan ?t=TOKEN'; return; }
+      if(d.ok){
+        status.textContent='✅ '+d.msg;
+        document.getElementById('acc-secret').value='';
+        document.getElementById('acc-key').value='';
+        document.getElementById('acc-name').value='';
+        loadAccounts();
+      } else { status.textContent='❌ '+(d.error||'gagal'); }
+    })
+    .catch(e=>{ status.textContent='❌ '+e.message; });
+}
 async function loadAccounts(){
   try{
     const r=await fetch('/api/accounts',{headers:apiHdrs()});
