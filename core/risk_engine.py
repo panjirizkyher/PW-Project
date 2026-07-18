@@ -52,8 +52,9 @@ class RiskEngine:
         if risk_per_unit <= 0:
             return 0.0
         qty = risk_amt / risk_per_unit
-        # batasi eksposur total per posisi (max 15% equity biar 8 posisi = max 60-120%)
-        max_exp_qty = (self.balance * 0.15) / t.entry
+        # HFT: per-posisi exposure = total_exposure / max_open (biar N posisi tdk melebihi budget)
+        per_pos_pct = (self.max_exposure_pct / 100.0) / max(self.max_open, 1)
+        max_exp_qty = (self.balance * per_pos_pct) / t.entry
         return min(qty, max_exp_qty)
 
     # --- circuit breaker: cek drawdown harian ---
