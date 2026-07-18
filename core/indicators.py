@@ -32,18 +32,40 @@ def fib_levels(low: float, high: float) -> dict:
         "1.0": high,
     }
 
+def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Average True Range (Wilder) — ukur volatilitas buat SL/TP realistis."""
+    high, low, close = df["high"], df["low"], df["close"]
+    prev_close = close.shift()
+    tr = pd.concat([
+        (high - low).abs(),
+        (high - prev_close).abs(),
+        (low - prev_close).abs(),
+    ], axis=1).max(axis=1)
+    return tr.ewm(alpha=1 / period, adjust=False).mean()
+
+def bollinger(close: pd.Series, period: int = 20, n_std: float = 2.0):
+    """Kembalikan (mid, upper, lower) sebagai pd.Series."""
+    mid = close.rolling(period).mean()
+    sd = close.rolling(period).std(ddof=0)
+    upper = mid + n_std * sd
+    lower = mid - n_std * sd
+    return mid, upper, lower
+
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     # guard: df kosong / tanpa kolom 'close' (fetch OHLCV gagal) -> jangan KeyError
     if df.empty or "close" not in df.columns:
-        for c in ("rsi14", "ema50", "ema200", "adx"):
+        for c in ("rsi14", "ema50", "ema200", "adx", "atr14", "bb_upper", "bb_lower", "bb_mid"):
             df[c] = pd.Series(dtype="float64")
         return df
     df["rsi14"] = rsi(df["close"], 14)
     df["ema50"] = ema(df["close"], 50)
     df["ema200"] = ema(df["close"], 200)
     df["adx"] = adx(df, 14)  # kekuatan trend (Helios)
+    df["atr14"] = atr(df, 14)  # volatilitas (Leviathan SL/TP)
+    mid, up, lo = bollinger(df["close"], 20, 2.0)
+    df["bb_mid"], df["bb_upper"], df["bb_lower"] = mid, up, lo
     return df
 
 

@@ -40,3 +40,9 @@
 [2026-07-18 21:02:56] TRADE_BLOCKED AAVE/USDT: API key BELUM punya izin Spot Trading (Binance -2015). Buka Binance > API Management > Edit restrictions > centang 'Enable Spot & Margin Trading' (Withdrawals tetap OFF).
 [2026-07-18 21:03:09] TRADE_BLOCKED AAVE/USDT: API key BELUM punya izin Spot Trading (Binance -2015). Buka Binance > API Management > Edit restrictions > centang 'Enable Spot & Margin Trading' (Withdrawals tetap OFF).
 [main] settings loaded, mode=live keys=['mode', 'confirm_live_manually', 'exchange', 'api_keys', 'risk', 'signal', 'telegram', 'dashboard', 'price_feed', 'schedule']
+[main] settings loaded, mode=live keys=['mode', 'confirm_live_manually', 'exchange', 'api_keys', 'risk', 'signal', 'telegram', 'dashboard', 'price_feed', 'schedule']
+[main] settings loaded, mode=live keys=['mode', 'confirm_live_manually', 'exchange', 'api_keys', 'risk', 'signal', 'telegram', 'dashboard', 'price_feed', 'schedule']
+[main] settings loaded, mode=live keys=['mode', 'confirm_live_manually', 'exchange', 'api_keys', 'risk', 'signal', 'telegram', 'dashboard', 'price_feed', 'schedule']
+[main] settings loaded, mode=live keys=['mode', 'confirm_live_manually', 'exchange', 'api_keys', 'risk', 'signal', 'telegram', 'dashboard', 'price_feed', 'schedule']
+[main] settings loaded, mode=live keys=['mode', 'confirm_live_manually', 'exchange', 'api_keys', 'risk', 'signal', 'telegram', 'dashboard', 'price_feed', 'schedule']
+[main] settings loaded, mode=live keys=['mode', 'confirm_live_manually', 'exchange', 'api_keys', 'risk', 'signal', 'telegram', 'dashboard', 'price_feed', 'schedule']

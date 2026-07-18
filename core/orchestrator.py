@@ -392,6 +392,7 @@ class Orchestrator:
                     "symbol": sym, "side": sig["side"], "qty": qty,
                     "entry": fill.price, "stop_loss": sig["stop_loss"],
                     "take_profit": sig["take_profit"], "bars": 0,
+                    "last": fill.price,
                 })
                 fill_info += f"\n{'PAPER' if fill.paper else 'LIVE'} FILL: {sig['side']} {qty:.6f} {sym} @ {fill.price:.2f} ({sig.get('strategy','?')}) [consensus conf={consensus.get('confidence')}]"
                 trade_action = "entry"
@@ -402,6 +403,22 @@ class Orchestrator:
 
         import time as _t
         self.state["last_cycle_ts"] = int(_t.time())
+
+        # recalc equity agar wajar (bukan ngaco negatif):
+        # equity = base_balance + realized_pnl + sum(unrealized per posisi)
+        try:
+            base = float(self.risk.balance)
+            unreal = 0.0
+            for pos in self.state.get("positions", []):
+                # unrealized = (last - entry) * qty  (buy) / (entry - last) * qty (sell)
+                p = pos.get("last", pos.get("entry", 0))
+                if pos["side"] == "buy":
+                    unreal += (p - pos["entry"]) * pos["qty"]
+                else:
+                    unreal += (pos["entry"] - p) * pos["qty"]
+            self.state["equity"] = base + float(self.state.get("realized_pnl", 0.0)) + unreal
+        except Exception:
+            pass
         save_state(self.state)
 
         # equity curve point (pantau PnL)

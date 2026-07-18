@@ -42,15 +42,18 @@ class RiskEngine:
             return False, f"R:R {rr:.2f} < minimum {self.min_rr:.2f} (Madame Eleanor: tolak)."
         return True, f"R:R {rr:.2f} OK."
 
-    # --- ukuran posisi (1-2% risk) x position_scale ---
+    # --- ukuran posisi (risk-based) x position_scale ---
     def position_size(self, t: ProposedTrade) -> float:
+        # SL minimum 1% dari entry biar qty tdk gila (anti over-leverage)
+        min_sl_dist = t.entry * 0.01
+        sl_dist = max(abs(t.entry - t.stop_loss), min_sl_dist)
         risk_amt = self.balance * (self.risk_pct / 100.0) * self.position_scale
-        risk_per_unit = abs(t.entry - t.stop_loss)
+        risk_per_unit = sl_dist
         if risk_per_unit <= 0:
             return 0.0
         qty = risk_amt / risk_per_unit
-        # batasi eksposur total
-        max_exp_qty = (self.balance * (self.max_exposure_pct / 100.0)) / t.entry
+        # batasi eksposur total per posisi (max 15% equity biar 8 posisi = max 60-120%)
+        max_exp_qty = (self.balance * 0.15) / t.entry
         return min(qty, max_exp_qty)
 
     # --- circuit breaker: cek drawdown harian ---
