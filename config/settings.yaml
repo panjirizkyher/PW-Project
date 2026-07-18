@@ -1,5 +1,5 @@
 mode: live
-confirm_live_manually: true
+confirm_live_manually: false
 exchange:
   id: binance
   symbol: BTC/USDT
@@ -13,20 +13,20 @@ api_keys:
     secret_env: EXCHANGE_LIVE_SECRET
 risk:
   account_balance: 10000.0
-  risk_per_trade_pct: 5.0
-  max_daily_loss_pct: 10.0
-  min_reward_risk_ratio: 2.0
+  risk_per_trade_pct: 8.0
+  max_daily_loss_pct: 12.0
+  min_reward_risk_ratio: 1.8
   max_open_positions: 8
-  max_total_exposure_pct: 40.0
-  max_hold_bars: 200
+  max_total_exposure_pct: 60.0
+  max_hold_bars: 120
 signal:
   strategy: rsi_mean_reversion_plus_breakout
   rsi_period: 14
-  rsi_oversold: 50.0
+  rsi_oversold: 35.0
   rsi_overbought: 70.0
-  target_reward_risk_ratio: 2.5
-  breakout_bars: 20
-llm:
+  target_reward_risk_ratio: 1.8
+  breakout_bars: 12
+
   base_url: https://inference.nousresearch.com/v1
   model: tencent/hy3:free
   api_key_env: LLM_API_KEY
@@ -42,5 +42,4 @@ dashboard:
 price_feed:
   refresh_seconds: 5
 schedule:
-  run_every_minutes: 5
-confirm_live_manual: false
+  run_every_minutes: 2

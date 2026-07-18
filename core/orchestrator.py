@@ -160,6 +160,17 @@ class Orchestrator:
         self._audit(out["briefing_text"])
         return out["briefing_text"]
 
+    def _log_event(self, msg: str):
+        """Tulis event ke logs/bot_debug.log + stdout (aman, tdk crash)."""
+        line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
+        try:
+            os.makedirs("logs", exist_ok=True)
+            with open("logs/bot_debug.log", "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
+        print(line)
+
     def run_structured(self) -> dict:
         """Sama seperti run(), tapi kembalikan dict terstruktur + tulis briefing.json.
         Multi-symbol: scan N token via screener, eksekusi HANYA yang skor tertinggi
@@ -264,16 +275,16 @@ class Orchestrator:
             analyst_votes.append({"name": "CHRONOS", "view": "bear", "weight": 0.4,
                                   "note": f"regim {regime}"})
 
-        # risk voices
+        # risk voices — AGRESIF: bobot bull dinaikkan, bear diturunkan
         risk_votes = []
-        # Nyx = conservative (selalu hati-hati)
-        risk_votes.append({"name": "NYX", "view": "bear", "weight": 0.5,
-                          "note": "R:R>=2, 1% risk, circuit breaker"})
-        # Leviathan = aggressive (mau masuk)
-        risk_votes.append({"name": "LEVIATHAN", "view": "bull", "weight": 0.4,
-                          "note": "signal engine ingin entry"})
+        # Nyx = conservative (diturunkan biar tdk selalu HOLD)
+        risk_votes.append({"name": "NYX", "view": "bear", "weight": 0.25,
+                          "note": "R:R>=1.8, circuit breaker tetap ON"})
+        # Leviathan = aggressive (dinaikkan biar lebih sering entry)
+        risk_votes.append({"name": "LEVIATHAN", "view": "bull", "weight": 0.7,
+                          "note": "signal engine ingin entry (agresif)"})
         # Atlas = neutral PM (netral secara default)
-        risk_votes.append({"name": "ATLAS", "view": "hold", "weight": 0.3, "note": "head strategist"})
+        risk_votes.append({"name": "ATLAS", "view": "hold", "weight": 0.2, "note": "head strategist"})
 
         # lessons dari trade log (memory sederhana)
         lessons = self._load_lessons()
@@ -351,10 +362,14 @@ class Orchestrator:
             sig = self.leviathan.generate_signal(sdf, slast)
             if not sig or sig.get("side") not in ("buy", "sell"):
                 continue
-            # filter sentimen eksternal (bukan RSI/MA) — tolak long kalau bearish ekstrem
+            # filter sentimen eksternal (bukan RSI/MA) — AGRESIF: cuma tolak
+            # long kalau F&G < 15 (panic total), biar tdk lewat SKIP saat fear wajar
             if not self.vega.sentiment_ok(psych, sig.get("side")):
-                fill_info += f"\nSKIP {sym}: sentimen bearish ekstrem (Vega)"
-                continue
+                fgv = (psych or {}).get("fg_value", 100) if isinstance(psych, dict) else 100
+                if fgv < 15:
+                    fill_info += f"\nSKIP {sym}: sentimen panic ekstrem (F&G {fgv})"
+                    continue
+                # F&G >=15 -> abaikan filter (agresif, tetap masuk)
             # jangan dobel di simbol yg sudah ada
             if any(p["symbol"] == sym for p in self.state["positions"]):
                 continue

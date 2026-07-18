@@ -18,17 +18,17 @@ class Phoenix:
         peak = peak_equity if peak_equity else equity
         dd = (peak - equity) / peak if peak > 0 else 0.0
         dd_pct = dd * 100.0
-        if dd_pct >= 8.0:
+        if dd_pct >= 12.0:
             status = "critical"
             advice = ("Drawdown kritis. HENTIKAN entri baru, tutup posisi marginal, "
                       "pangkas ukuran 50%, beralih ke strategi konservatif (hanya RSI oversold ekstrem).")
-            scale = 0.5
-        elif dd_pct >= 3.0:
+            scale = 0.7
+        elif dd_pct >= 6.0:
             status = "recovering"
             advice = ("Fase recovery. Turunkan ukuran 25%, hindari martingale/revenge. "
                       "Biarkan posisi bagus berjalan; hanya tambah saat setup A+.")
-            scale = 0.75
-        elif dd_pct >= 1.0:
+            scale = 0.85
+        elif dd_pct >= 2.0:
             status = "watch"
             advice = "Drawdown ringan. Pertahankan disiplin; jangan kompensasi kerugian dgn lot besar."
             scale = 1.0
