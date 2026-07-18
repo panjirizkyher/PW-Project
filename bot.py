@@ -172,7 +172,82 @@ class Handler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     self._send(500, {"ok": False, "error": str(e)})
                 return
+            if self.path.startswith("/api/keys"):
+                self._handle_save_keys()
+                return
         self._send(404, {"ok": False})
+
+    def _handle_save_keys(self):
+        """Terima API key Binance dari form login (dashboard).
+        KEAMANAN:
+          - secret TIDAK pernah di-echo balik (hanya masked).
+          - hanya tulis ke config/.env (sudah gitignored).
+          - mode LIVE tdk auto-nyala: butuh confirm_live_manually=false + restart.
+        """
+        try:
+            ln = int(self.headers.get("Content-Length", 0))
+            raw = json.loads(self.rfile.read(ln) or b"{}")
+        except Exception as e:
+            self._send(400, {"ok": False, "error": str(e)})
+            return
+        mode = raw.get("mode", "live")
+        if mode not in ("demo", "live"):
+            self._send(400, {"ok": False, "error": "mode harus demo/live"})
+            return
+        key = (raw.get("key") or "").strip()
+        secret = (raw.get("secret") or "").strip()
+        if len(key) < 10 or len(secret) < 10:
+            self._send(400, {"ok": False, "error": "Key/Secret terlalu pendek (bukan API key valid)"})
+            return
+        env_key = f"EXCHANGE_{(mode.upper())}_KEY"
+        env_secret = f"EXCHANGE_{(mode.upper())}_SECRET"
+        try:
+            self._write_env(env_key, key)
+            self._write_env(env_secret, secret)
+        except Exception as e:
+            self._send(500, {"ok": False, "error": f"gagal simpan: {e}"})
+            return
+        # WARNING: live tdk auto-nyala
+        warn = ""
+        if mode == "live":
+            clm = bool(get_nested(Handler.settings, "confirm_live_manually"))
+            if clm:
+                warn = ("Key LIVE tersimpan, tapi mode tetap DEMO (confirm_live_manually=true). "
+                        "Live trading TIDAK aktif sampai kamu set confirm_live_manual=false + restart bot. "
+                        "Gunakan key IP-whitelist + TANPA izin withdraw.")
+            else:
+                warn = ("PERINGATAN: confirm_live_manually=false — restart bot akan AKTIFKAN live trading "
+                        "dengan uang ASLI. Pastikan key IP-whitelist + no-withdraw.")
+        masked = (key[:4] + "*" * (len(key) - 8) + key[-4:]) if len(key) > 8 else "****"
+        self._send(200, {
+            "ok": True,
+            "mode": mode,
+            "masked_key": masked,
+            "warning": warn,
+            "note": "Secret TIDAK ditampilkan. Tersimpan di config/.env (gitignored).",
+        })
+
+    @staticmethod
+    def _write_env(name: str, value: str):
+        """Tulis/overwrite SATU variabel di config/.env tanpa hapus baris lain."""
+        import os as _os
+        p = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "config", ".env")
+        lines = []
+        if _os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        new_lines = []
+        replaced = False
+        for ln_ in lines:
+            if ln_.startswith(f"{name}=") or ln_.startswith(f"{name} ="):
+                new_lines.append(f"{name} = {value}")
+                replaced = True
+            else:
+                new_lines.append(ln_)
+        if not replaced:
+            new_lines.append(f"{name} = {value}")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("\n".join(new_lines) + "\n")
 
 
 def price_feed(orch: Orchestrator, interval: int):

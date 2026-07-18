@@ -141,6 +141,11 @@
   .eq .statx .x .v{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700}
   .eq canvas{width:100%;height:140px;display:block}
   .spinner{font-size:11px;color:var(--dim)}
+  .panel.login{background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:18px}
+  .panel.login .warn{font-size:11px;color:#fbbf24;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:8px;padding:8px 10px;margin:8px 0 12px;line-height:1.5}
+  .panel.login code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace}
+  .keys-warn{font-size:11px;color:#f87171;margin-top:8px;white-space:pre-wrap;line-height:1.5}
+  .keys-warn.ok{color:#34d399}
 </style>
 </head>
 <body>
@@ -180,6 +185,27 @@
       <button class="btn" id="btn-save">Simpan & Terapkan</button>
       <button class="btn ghost" id="btn-run">▶ Jalankan Siklus Sekarang</button>
     </div>
+  </div>
+
+  <div class="panel login">
+    <h3>🔐 Login & API Key Binance <span class="saved" id="keys-saved"></span></h3>
+    <p class="warn">⚠️ Masukkan API Key + Secret Binance. Secret <b>TIDAK pernah ditampilkan</b> & hanya disimpan di <code>config/.env</code> (gitignored).
+    Gunakan key <b>IP-whitelist + TANPA izin withdraw</b>. Live trading TIDAK auto-nyala.</p>
+    <div class="ctl-grid">
+      <label>Mode
+        <select id="key-mode">
+          <option value="live">LIVE (uang asli)</option>
+          <option value="demo">DEMO (testnet)</option>
+        </select>
+      </label>
+      <label>API Key <input id="key-api" type="text" placeholder="mis. Xq2...BinanceKey" autocomplete="off"></label>
+      <label>API Secret <input id="key-secret" type="password" placeholder="••••••••" autocomplete="off"></label>
+    </div>
+    <div class="ctl-actions">
+      <button class="btn" id="btn-keys">💾 Simpan API Key</button>
+      <span id="keys-status" class="ctxt"></span>
+    </div>
+    <div class="keys-warn" id="keys-warn"></div>
   </div>
 
   <div class="eq">
@@ -512,6 +538,31 @@ document.getElementById('btn-save').addEventListener('click',async ()=>{
 document.getElementById('btn-run').addEventListener('click',async ()=>{
   try{ await fetch('/api/run',{method:'POST',headers:apiHdrs()}); }catch(e){}
   const b=document.getElementById('btn-run');const t=b.textContent;b.textContent='⏳…';setTimeout(()=>b.textContent=t,2500);
+});
+document.getElementById('btn-keys').addEventListener('click',async ()=>{
+  const mode=document.getElementById('key-mode').value;
+  const key=document.getElementById('key-api').value.trim();
+  const secret=document.getElementById('key-secret').value.trim();
+  const status=document.getElementById('keys-status');
+  const warn=document.getElementById('keys-warn');
+  const saved=document.getElementById('keys-saved');
+  status.textContent='⏳ menyimpan…'; warn.textContent=''; warn.className='keys-warn';
+  if(!key || !secret){ status.textContent='❌ isi key & secret'; return; }
+  try{
+    const r=await fetch('/api/keys',{method:'POST',headers:apiHdrs(),
+      body:JSON.stringify({mode,key,secret})});
+    const d=await r.json();
+    if(d.ok){
+      status.textContent='✅ tersimpan ('+(d.masked_key||'')+')';
+      saved.textContent='✓ '+mode.toUpperCase(); saved.classList.add('show');
+      setTimeout(()=>saved.classList.remove('show'),1800);
+      document.getElementById('key-secret').value=''; // jangan biarkan secret di form
+      if(d.warning){ warn.textContent='⚠️ '+d.warning; warn.className='keys-warn'; }
+      else { warn.textContent='✓ '+ (d.note||''); warn.className='keys-warn ok'; }
+    } else {
+      status.textContent='❌ '+(d.error||'gagal');
+    }
+  }catch(e){ status.textContent='❌ '+e.message; }
 });
 
 // jadwal: briefing 60s, tick realtime 4s, controls 30s, equity 10s
