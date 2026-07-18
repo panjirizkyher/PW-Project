@@ -150,6 +150,7 @@ class Orchestrator:
                     pl = last
             exit_side = "sell" if pos["side"] == "buy" else "buy"
             reason = None
+            pos["bars"] = pos.get("bars", 0) + 1   # naikkan tiap siklus (buat timeout)
             if pos["side"] == "buy":
                 if pl <= pos["stop_loss"]:
                     reason = "SL"
@@ -219,6 +220,8 @@ class Orchestrator:
         if not fill_info:
             fill_info = "Sinyal: HOLD (RSI netral / tidak ada setup bagus)."
 
+        import time as _t
+        self.state["last_cycle_ts"] = int(_t.time())
         save_state(self.state)
 
         # equity curve point (pantau PnL)
