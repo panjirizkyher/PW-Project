@@ -35,6 +35,11 @@ def fib_levels(low: float, high: float) -> dict:
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
+    # guard: df kosong / tanpa kolom 'close' (fetch OHLCV gagal) -> jangan KeyError
+    if df.empty or "close" not in df.columns:
+        for c in ("rsi14", "ema50", "ema200", "adx"):
+            df[c] = pd.Series(dtype="float64")
+        return df
     df["rsi14"] = rsi(df["close"], 14)
     df["ema50"] = ema(df["close"], 50)
     df["ema200"] = ema(df["close"], 200)
