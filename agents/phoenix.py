@@ -1,5 +1,5 @@
 """
-AGENT — PHOENIX (Recovery Specialist + LEARNING AGENT ML)
+AGENT — ARZANKA (Recovery Specialist + LEARNING AGENT ML)
 
 Upgrade: PHOENIX sekarang juga bertindak sebagai Learning Agent pusat.
   - assess(): recovery berbasis DD (tetap ada, deterministik).
@@ -26,7 +26,7 @@ from core.ml.parameter_optimizer import optimize_all, DEFAULT_PARAMS
 
 class Phoenix:
     def __init__(self):
-        self.name = "PHOENIX"
+        self.name = "ARZANKA"
 
     # ---------- Recovery (deterministik, tetap ada) ----------
     def assess(self, equity: float, realized_pnl: float, peak_equity: float = None) -> dict:

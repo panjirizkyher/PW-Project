@@ -1,5 +1,5 @@
 """
-AGENT — NYX (Risk Guardian)
+AGENT — QUEEN (Risk Guardian)
 Layer teks. GUARDRAIL HARD ada di core/risk_engine.py (di-enforce di kode).
 Versi upgrade: cek juga daily-loss circuit breaker status + korelasi-ringkas.
 """
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 class Nyx:
     def __init__(self):
-        self.name = "NYX"
+        self.name = "QUEEN"
 
     def comment(self, trade_ok: bool, rr_msg: str, open_count: int, max_open: int,
                 halted: bool = False, daily_loss_pct: float = 0.0) -> str:

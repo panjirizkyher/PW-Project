@@ -1,5 +1,5 @@
 """
-AGENT — HELIOS (Trend Analyst)
+AGENT — SKAY (Trend Analyst)
 Price action + indikator deterministik. Hasilkan level S&R + struktur + bias.
 Versi upgrade: tambah ADX (kekuatan trend) + konfirmasi volume.
 """
@@ -9,7 +9,7 @@ import pandas as pd
 
 class Helios:
     def __init__(self):
-        self.name = "HELIOS"
+        self.name = "SKAY"
 
     def analyze(self, df: pd.DataFrame) -> dict:
         if df is None or df.empty:

@@ -1,5 +1,5 @@
 """
-AGENT — LEVIATHAN (Execution & Liquidity / Signal Engine)
+AGENT — SYAFIRA (Execution & Liquidity / Signal Engine)
 Sinyal DETERMINISTIK dari data nyata (bukan tebakan LLM).
 Strategi aktif (auto-pilih terbaik per kondisi pasar) — UPGRADE v2:
   1. TREND_FOLLOW  — beli saat EMA-fast > EMA-slow & pullback ke EMA-fast
@@ -17,7 +17,7 @@ class Leviathan:
     def __init__(self, settings: dict):
         cfg = settings.get("signal", {})
         self.cfg = cfg
-        self.name = "LEVIATHAN"
+        self.name = "SYAFIRA"
         self.target_rr = float(cfg.get("target_reward_risk_ratio", 1.8))
         self.rsi_os = float(cfg.get("rsi_oversold", 35.0))
         self.rsi_ob = float(cfg.get("rsi_overbought", 70.0))

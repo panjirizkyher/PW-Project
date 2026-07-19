@@ -1,5 +1,5 @@
 """
-AGENT — VEGA (Quant & Statistics)
+AGENT — ABRISAM (Quant & Statistics)
 Mantan Nakamoto X, di-upgrade jadi kuantitatif + SENTIMEN EKSTERNAL.
   - Sentimen: Fear&Greed + market_psychology (dominasi, tren viral) — bukan cuma RSI
   - STATISTIK: Sharpe/volatility/skew dari return window
@@ -13,7 +13,7 @@ import numpy as np
 class Vega:
     def __init__(self, llm=None):
         self.llm = llm
-        self.name = "VEGA"
+        self.name = "ABRISAM"
 
     def analyze(self, fg: dict, df=None, psych: dict = None, trending: list = None) -> str:
         if not fg and not psych:

@@ -1,5 +1,5 @@
 """
-AGENT — ARGUS (Market Surveillance)
+AGENT — NOAH (Market Surveillance)
 Pemantau pasar: scan anomali, likuiditas menipis, spike volatilitas,
 serta daftar watchlist (screener). Deterministik (no LLM).
 Output: alert + daftar simbol mencurigakan yg harus dihindari/dinasari.
@@ -10,7 +10,7 @@ import pandas as pd
 
 class Argus:
     def __init__(self):
-        self.name = "ARGUS"
+        self.name = "NOAH"
 
     def scan(self, df: pd.DataFrame, symbol: str = "") -> dict:
         """Deteksi anomali pada 1 token. Return dict alert."""

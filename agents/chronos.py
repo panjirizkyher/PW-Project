@@ -1,5 +1,5 @@
 """
-AGENT — CHRONOS (Macro Timing Specialist)
+AGENT — WIRA (Macro Timing Specialist)
 Versi deterministik (tanpa LLM API key).
 Lapisan data NYATA (bukan cuma RSI/MA):
   - Fear&Greed (crypto sentiment)
@@ -18,7 +18,7 @@ from datetime import datetime
 class Chronos:
     def __init__(self, llm=None):
         self.llm = llm
-        self.name = "CHRONOS"
+        self.name = "WIRA"
 
     def analyze(self, macro_events: list = None, fg: dict = None,
                 btc_df=None, volatility: float = None,

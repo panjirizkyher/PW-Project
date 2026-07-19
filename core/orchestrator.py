@@ -314,39 +314,39 @@ class Orchestrator:
         analyst_votes = []
         # Helios = bull voice (trend)
         if helios.get("bias") == "Bullish":
-            analyst_votes.append({"name": "HELIOS", "view": "bull", "weight": 0.6,
+            analyst_votes.append({"name": "SKAY", "view": "bull", "weight": 0.6,
                                   "note": helios.get("text", "")[:80]})
         elif helios.get("bias") == "Bearish":
-            analyst_votes.append({"name": "HELIOS", "view": "bear", "weight": 0.6,
+            analyst_votes.append({"name": "SKAY", "view": "bear", "weight": 0.6,
                                   "note": helios.get("text", "")[:80]})
         else:
-            analyst_votes.append({"name": "HELIOS", "view": "hold", "weight": 0.3, "note": "netral"})
+            analyst_votes.append({"name": "SKAY", "view": "hold", "weight": 0.3, "note": "netral"})
         # Vega = bear/quant voice (skew/sharpe)
         vs = self.vega.stats(df)
         if vs.get("sharpe", 0) < -1 or vs.get("skew", 0) < -0.5:
-            analyst_votes.append({"name": "VEGA", "view": "bear", "weight": 0.5,
+            analyst_votes.append({"name": "ABRISAM", "view": "bear", "weight": 0.5,
                                   "note": f"sharpe {vs['sharpe']} skew {vs['skew']} (ekor kiri)"})
         else:
-            analyst_votes.append({"name": "VEGA", "view": "bull", "weight": 0.4,
+            analyst_votes.append({"name": "ABRISAM", "view": "bull", "weight": 0.4,
                                   "note": f"sharpe {vs['sharpe']} vol {vs['vol']}"})
         # Chronos regime -> bull/bear
         if regime == "risk_on":
-            analyst_votes.append({"name": "CHRONOS", "view": "bull", "weight": 0.4,
+            analyst_votes.append({"name": "WIRA", "view": "bull", "weight": 0.4,
                                   "note": f"regim {regime}"})
         elif regime == "risk_off":
-            analyst_votes.append({"name": "CHRONOS", "view": "bear", "weight": 0.4,
+            analyst_votes.append({"name": "WIRA", "view": "bear", "weight": 0.4,
                                   "note": f"regim {regime}"})
 
         # risk voices — AGRESIF: bobot bull dinaikkan, bear diturunkan
         risk_votes = []
         # Nyx = conservative (diturunkan biar tdk selalu HOLD)
-        risk_votes.append({"name": "NYX", "view": "bear", "weight": 0.25,
+        risk_votes.append({"name": "QUEEN", "view": "bear", "weight": 0.25,
                           "note": "R:R>=1.8, circuit breaker tetap ON"})
         # Leviathan = aggressive (dinaikkan biar lebih sering entry)
-        risk_votes.append({"name": "LEVIATHAN", "view": "bull", "weight": 0.7,
+        risk_votes.append({"name": "SYAFIRA", "view": "bull", "weight": 0.7,
                           "note": "signal engine ingin entry (agresif)"})
         # Atlas = neutral PM (netral secara default)
-        risk_votes.append({"name": "ATLAS", "view": "hold", "weight": 0.2, "note": "head strategist"})
+        risk_votes.append({"name": "PANJI", "view": "hold", "weight": 0.2, "note": "head strategist"})
 
         # lessons dari trade log (memory sederhana)
         lessons = self._load_lessons()
@@ -575,14 +575,14 @@ class Orchestrator:
             halted=self.breaker.halted,
             daily_loss_pct=abs(self.state.get("realized_pnl", 0.0))) if not eleanor_txt else eleanor_txt
         sections = [
-            {"key": "atlas",    "name": "ATLAS",        "role": "Head Strategist",   "text": atlas_txt},
-            {"key": "chronos",  "name": "CHRONOS",      "role": "Macro Timing",      "text": chronos_txt},
-            {"key": "helios",   "name": "HELIOS",       "role": "Trend Analyst",     "text": helios.get("text", "")},
-            {"key": "vega",     "name": "VEGA",         "role": "Quant & Statistics", "text": vega_txt},
-            {"key": "leviathan","name": "LEVIATHAN",    "role": "Signal/Execution",  "text": f"entries={new_entries} top_setup={symbol} strategy=rsi+breakout"},
-            {"key": "nyx",      "name": "NYX",          "role": "Risk Guardian",     "text": f"{eleanor_txt}\n{fill_info}"},
-            {"key": "argus",    "name": "ARGUS",        "role": "Market Surveillance","text": argus_txt},
-            {"key": "phoenix",  "name": "PHOENIX",      "role": "Recovery",          "text": f"[{phoenix.get('status','?').upper()}] dd={phoenix.get('dd_pct',0)}% — {phoenix.get('advice','')}"},
+            {"key": "atlas",    "name": "PANJI",    "role": "Head Strategist",   "text": atlas_txt},
+            {"key": "chronos",  "name": "WIRA",     "role": "Macro Timing",      "text": chronos_txt},
+            {"key": "helios",   "name": "SKAY",     "role": "Trend Analyst",     "text": helios.get("text", "")},
+            {"key": "vega",     "name": "ABRISAM",  "role": "Quant & Statistics", "text": vega_txt},
+            {"key": "leviathan","name": "SYAFIRA",  "role": "Signal/Execution",  "text": f"entries={new_entries} top_setup={symbol} strategy=rsi+breakout"},
+            {"key": "nyx",      "name": "QUEEN",    "role": "Risk Guardian",     "text": f"{eleanor_txt}\n{fill_info}"},
+            {"key": "argus",    "name": "NOAH",     "role": "Market Surveillance","text": argus_txt},
+            {"key": "phoenix",  "name": "ARZANKA",  "role": "Recovery + Learning ML", "text": f"[{phoenix.get('status','?').upper()}] dd={phoenix.get('dd_pct',0)}% — {phoenix.get('advice','')}"},
         ]
         screen_txt = "\n".join(f"  {r['symbol']}: skor {r['score']} | RSI {r['rsi']} | {r['side_bias']}" for r in top)
         briefing_text = (

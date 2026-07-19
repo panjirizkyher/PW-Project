@@ -1,5 +1,5 @@
 """
-AGENT — ATLAS (Head Strategist)
+AGENT — PANJI (Head Strategist)
 Koordinator tim. Versi deterministik (tanpa LLM API key).
 Menggabungkan refleksi psikologi (dari state NYATA) + SINTESIS keputusan tim:
   - drawdown harian -> panic/fear check
@@ -16,7 +16,7 @@ from datetime import datetime
 class Atlas:
     def __init__(self, llm=None):
         self.llm = llm
-        self.name = "ATLAS"
+        self.name = "PANJI"
 
     def reflect(self, state: dict = None, bias_hint: str = "") -> str:
         s = state or {}
@@ -53,7 +53,7 @@ class Atlas:
         lines.append("Ingat: konsistensi beats keberuntungan.")
 
         verdict = "halt" if flag_halt else ("caution" if flag_caution else "go")
-        return f"[ATLAS: {verdict.upper()}] " + " ".join(lines)
+        return f"[{self.name}: {verdict.upper()}] " + " ".join(lines)
 
     def decide(self, regime: str, risk_ok: bool, phoenix_status: str = "") -> str:
         """Sintesis keputusan tim -> satu kata: go / caution / halt."""
