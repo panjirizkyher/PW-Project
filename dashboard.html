@@ -135,9 +135,12 @@
   .ctl input[type=range]{width:100%;accent-color:#0ea5e9}
   .ctl .val{font-family:'JetBrains Mono',monospace;color:var(--buy);font-weight:700}
   .ctl-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
-  .btn{background:linear-gradient(135deg,#0ea5e9,#8b5cf6);color:#fff;border:none;border-radius:10px;
-    padding:9px 16px;font-weight:700;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif}
-  .btn.ghost{background:rgba(255,255,255,.06);border:1px solid var(--line2);color:var(--txt)}
+  .btn{background:#00e5ff;color:#001014;border:none;border-radius:10px;
+    padding:9px 16px;font-weight:800;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;
+    box-shadow:0 0 10px #00e5ff,0 0 22px rgba(0,229,255,.55);transition:box-shadow .2s,transform .1s}
+  .btn:hover{box-shadow:0 0 16px #00e5ff,0 0 34px rgba(0,229,255,.75)}
+  .btn.ghost{background:rgba(255,255,255,.06);border:1px solid var(--line2);color:var(--txt);
+    box-shadow:none}
   .btn:active{transform:translateY(1px)}
   .saved{font-size:11px;color:var(--buy);font-weight:600;margin-left:auto;opacity:0;transition:.3s}
   .saved.show{opacity:1}
@@ -170,10 +173,10 @@
 <body>
   <div class="top">
     <div class="brand">
-      <div class="logo">⚡</div>
+      <div class="logo"><img src="assets/logo.svg" alt="PW Project" onerror="this.style.display='none'"></div>
       <div>
-        <h1>PEWE TRADING DESK</h1>
-        <div class="sub">Multi-Agent Autonomous System · 6 Specialists · Auto-refresh 60s</div>
+        <h1>PW Project</h1>
+        <div class="sub">Smart Agent AI Trading</div>
       </div>
     </div>
     <div class="live"><span class="dot"></span> LIVE <span id="clock" style="color:var(--muted);font-weight:500"></span></div>
@@ -287,14 +290,14 @@
 <script>
 window.onerror=function(m,s,l,c,e){ try{ var el=document.getElementById('acc-status'); if(el) el.textContent='⚠️ JS: '+(m||'')+' @'+l; }catch(_){} };
 const AGENTS=[
-  {key:'atlas',nm:'PANJI',rl:'Head Strategist',ava:'👑',c:'#fbbf24',tag:'Koordinator Tim'},
-  {key:'chronos',nm:'WIRA',rl:'Macro Timing Specialist',ava:'⏳',c:'#60a5fa',tag:'FOMC · NFP · CPI · Timing'},
-  {key:'helios',nm:'SKAY',rl:'Trend Analyst',ava:'☀️',c:'#f59e0b',tag:'Price Action · ADX'},
-  {key:'vega',nm:'ABRISAM',rl:'Quant & Statistics',ava:'📊',c:'#34d399',tag:'Sharpe · Skew · F&G'},
-  {key:'leviathan',nm:'SYAFIRA',rl:'Execution & Liquidity',ava:'🐉',c:'#22d3ee',tag:'RSI · Breakout · Slippage'},
-  {key:'nyx',nm:'QUEEN',rl:'Risk Guardian',ava:'🛡️',c:'#f87171',tag:'R:R ≥ 1:2 · 1% · Circuit'},
-  {key:'argus',nm:'NOAH',rl:'Market Surveillance',ava:'👁️',c:'#a78bfa',tag:'Anomali · Likuiditas'},
-  {key:'phoenix',nm:'ARZANKA',rl:'Recovery Specialist + Learning ML',ava:'🔥',c:'#fb923c',tag:'Drawdown · Scale-down · Retrain'},
+  {key:'atlas',nm:'PANJI',rl:'Head Strategist',ava:'',c:'#fbbf24',tag:'Koordinator Tim'},
+  {key:'chronos',nm:'WIRA',rl:'Macro Timing Specialist',ava:'',c:'#60a5fa',tag:'FOMC · NFP · CPI · Timing'},
+  {key:'helios',nm:'SKAY',rl:'Trend Analyst',ava:'',c:'#f59e0b',tag:'Price Action · ADX'},
+  {key:'vega',nm:'ABRISAM',rl:'Quant & Statistics',ava:'',c:'#34d399',tag:'Sharpe · Skew · F&G'},
+  {key:'leviathan',nm:'SYAFIRA',rl:'Execution & Liquidity',ava:'',c:'#22d3ee',tag:'RSI · Breakout · Slippage'},
+  {key:'nyx',nm:'QUEEN',rl:'Risk Guardian',ava:'',c:'#f87171',tag:'R:R ≥ 1:2 · 1% · Circuit'},
+  {key:'argus',nm:'NOAH',rl:'Market Surveillance',ava:'',c:'#a78bfa',tag:'Anomali · Likuiditas'},
+  {key:'phoenix',nm:'ARZANKA',rl:'Recovery Specialist + Learning ML',ava:'',c:'#fb923c',tag:'Drawdown · Scale-down · Retrain'},
 ];
 const COL={atlas:'a',chronos:'c',helios:'h',vega:'v',leviathan:'l',nyx:'n',argus:'u',phoenix:'p'};
 const grid=document.getElementById('grid');
