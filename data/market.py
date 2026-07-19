@@ -28,9 +28,7 @@ class MarketData:
             if c and (c[1] + self._ohlc_ttl) > time.time():
                 return c[0]
         try:
-            raw = self.ex.fetch_ohlcv(symbol, timeframe, limit=limit)
-            df = pd.DataFrame(raw, columns=["ts", "open", "high", "low", "close", "volume"])
-            df["ts"] = pd.to_datetime(df["ts"], unit="ms")
+            df = self._fetch_ohlcv_paginated(symbol, timeframe, limit)
             if use_cache:
                 self._ohlc_cache[key] = (df, time.time())
             return df
@@ -39,6 +37,39 @@ class MarketData:
             # fallback ke cache lama kalau ada
             c = self._ohlc_cache.get(key)
             return c[0] if c else pd.DataFrame()
+
+    def _fetch_ohlcv_paginated(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
+        """Ambil hingga `limit` candle via paginasi (ccxt max 1000/call).
+        Pakai `since` mundur dari sekarang supaya dapat window historis panjang
+        (mis. 4320 candle 1h = ~6 bulan)."""
+        MAX = 1000
+        tf_ms = self._tf_to_ms(timeframe)
+        frames = []
+        remaining = limit
+        end_ts = int(time.time() * 1000)
+        while remaining > 0:
+            chunk = min(MAX, remaining)
+            raw = self.ex.fetch_ohlcv(symbol, timeframe, limit=chunk, since=end_ts - chunk * tf_ms)
+            if not raw:
+                break
+            df = pd.DataFrame(raw, columns=["ts", "open", "high", "low", "close", "volume"])
+            frames.append(df)
+            # lanjut mundur ke candle sebelum yg paling awal
+            first_ts = int(df["ts"].iloc[0])
+            end_ts = first_ts
+            remaining -= len(raw)
+            if len(raw) < chunk:
+                break
+        if not frames:
+            return pd.DataFrame()
+        out = pd.concat(frames, ignore_index=True).drop_duplicates(subset=["ts"]).sort_values("ts").reset_index(drop=True)
+        return out
+
+    @staticmethod
+    def _tf_to_ms(timeframe: str) -> int:
+        units = {"m": 60_000, "h": 3_600_000, "d": 86_400_000, "w": 604_800_000}
+        n = int(timeframe[:-1]); u = timeframe[-1]
+        return n * units.get(u, 3_600_000)
 
     def last_price(self, symbol: str) -> Optional[float]:
         try:

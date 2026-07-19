@@ -17,13 +17,21 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import feedparser
+import requests
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-# Feed RSS crypto (gratis, public)
+# Feed RSS crypto (gratis, public) — pakai UA browser supaya gak di-403 server
+_FEED_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) PEWE/1.0",
+    "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+}
 RSS_FEEDS = [
     "https://www.coindesk.com/arc/outboundfeeds/rss/",
     "https://cointelegraph.com/rss",
     "https://www.binance.com/en/feed-news/rss.xml",
+    "https://decrypt.co/feed",
+    "https://www.newsbtc.com/feed/",
+    "https://bitcoinmagazine.com/.rss/full/",
 ]
 _FEED_CACHE_TTL = 300  # 5 menit cache (hindari spam request)
 _cache = {"ts": 0.0, "entries": []}
@@ -48,7 +56,10 @@ TOKEN_ALIASES = {
 
 def _fetch_feed(url: str) -> list:
     try:
-        d = feedparser.parse(url)
+        r = requests.get(url, headers=_FEED_HEADERS, timeout=12)
+        if r.status_code != 200 or not r.content:
+            return []
+        d = feedparser.parse(r.content)
         out = []
         for e in d.entries:
             title = e.get("title", "")

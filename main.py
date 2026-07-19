@@ -21,9 +21,9 @@ def load_settings(path: str = "config/settings.yaml") -> dict:
         return yaml.safe_load(f)
 
 
-def run_backtest(settings: dict, mock: bool):
+def run_backtest(settings: dict, mock: bool, limit: int = 500):
     from core.backtest import run
-    print("[BACKTEST] mengambil data historis …")
+    print(f"[BACKTEST] mengambil data historis … (limit={limit} candle ≈ {limit/24:.0f} hari)")
     if mock:
         from data.mock import mock_ohlcv
         from core.indicators import add_indicators
@@ -32,14 +32,14 @@ def run_backtest(settings: dict, mock: bool):
         class _M:
             def ohlcv(self, sym, tf, limit):
                 return add_indicators(mock_ohlcv(limit, seed=hash(sym) % 1000))
-        res = run(_M(), settings, syms, limit=500, testnet=False)
+        res = run(_M(), settings, syms, limit=limit, testnet=False)
     else:
         mode = settings.get("mode", "demo")
         m = MarketData(settings.get("exchange", {}).get("id", "binance"), testnet=(mode == "demo"))
         # ambil daftar token likuid dari screener
         from core.screener import list_symbols
         syms = list_symbols(m)[:20] or ["BTC/USDT"]
-        res = run(m, settings, syms, limit=500, testnet=(mode == "demo"))
+        res = run(m, settings, syms, limit=limit, testnet=(mode == "demo"))
     print("\n=== BACKTEST RESULTS ===")
     for sym, m in res.items():
         if sym == "__AGGREGATE__":
@@ -63,7 +63,18 @@ def main():
 
     if "backtest" in sys.argv:
         mock = "--mock" in sys.argv
-        run_backtest(settings, mock)
+        # periode: --months 6 -> 4320 candle 1h (~6 bulan); --limit N override
+        tf = settings.get("exchange", {}).get("timeframe", "1h")
+        months = None
+        limit = None
+        for i, a in enumerate(sys.argv):
+            if a == "--months" and i + 1 < len(sys.argv):
+                months = float(sys.argv[i + 1])
+            if a == "--limit" and i + 1 < len(sys.argv):
+                limit = int(sys.argv[i + 1])
+        if limit is None:
+            limit = int(4320 * months) if months else 500  # default 21 hari
+        run_backtest(settings, mock, limit=limit)
         return
 
     mock = "--mock" in sys.argv
