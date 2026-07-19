@@ -520,20 +520,32 @@ async function loadAccount(){
 
 
   async function loadSentiment(){
-    let d;
-    try{ d=await (await fetch('logs/sentiment.json?t='+Date.now())).json(); }catch(e){ return; }
     const box=document.getElementById('sent'); if(!box) return;
-    const p=d.sentiment||d.psych||{}; const fg=d.fg||{};
-    const score=p.score_0_100??50;
-    const cls=score>=50?'pos':'neg';
-    const fgs=fg.value??'—';
-    let h=`<div class="card" style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
-      <div class="head">Market Sentiment (VADER) <span class="sub">FG ${fgs}</span></div>
-      <div class="sc ${cls}">${score}</div>
-      <div class="sub">${p.n_articles||0} artikel · ${p.n_relevant||0} relevan</div>
-    </div>`;
-    (p.top_positive||[]).slice(0,3).forEach(t=>{ h+=`<div class="news"><b>▲ ${t}</b></div>`; });
-    (p.top_negative||[]).slice(0,3).forEach(t=>{ h+=`<div class="news"><i>▼ ${t}</i></div>`; });
+    let d;
+    try{
+      const r=await fetch('logs/sentiment.json?t='+Date.now());
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      d=await r.json();
+    }catch(e){
+      // jangan biarkan spinner 'memuat…' selamanya: kasih pesan + retry nanti
+      box.innerHTML=`<div class="card" style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:10px 12px"><div class="sub">sentimen belum tersedia (offline/retry…)</div></div>`;
+      return;
+    }
+    const psych=d.psych||{}; const sent=d.sentiment||{}; const fg=d.fg||{};
+    // score ada di psych.score (range -100..+100) atau sentiment.score_0_100 (0..100)
+    let scoreRaw = (psych.score!==undefined)? psych.score : (sent.score_0_100!==undefined? (sent.score_0_100-50)*2 : 0);
+    const score = Math.round(Math.max(-100,Math.min(100,scoreRaw)));
+    const cls=score>=0?'pos':'neg';
+    const fgs=fg.value!==undefined? fg.value : '—';
+    let h=`<div class="card" style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:10px 12px">\n      <div class="head">Market Sentiment <span class="sub">FG ${fgs}</span></div>\n      <div class="sc ${cls}">${score>0?'+':''}${score}</div>\n      <div class="sub">${psych.label||'n/a'}</div>\n    </div>`;
+    // top positive / negative dari lapisan news (kalau ada)
+    (sent.top_positive||[]).slice(0,3).forEach(t=>{ h+=`<div class="news"><b>▲ ${t}</b></div>`; });
+    (sent.top_negative||[]).slice(0,3).forEach(t=>{ h+=`<div class="news"><i>▼ ${t}</i></div>`; });
+    // trending coins (viral) dari psych.trending
+    const tr=psych.trending||[];
+    if(tr.length){
+      h+=`<div class="news"><b>🔥 Viral:</b> ${tr.slice(0,5).map(c=>c.symbol).join(', ')}</div>`;
+    }
     box.innerHTML=h;
     const ts=document.getElementById('sent-ts');
     if(ts) ts.textContent = d.ts? new Date(d.ts*1000).toLocaleTimeString() : '';

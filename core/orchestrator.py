@@ -212,11 +212,16 @@ class Orchestrator:
                 except Exception:
                     pass
                 try:
-                    import json as _js
-                    os.makedirs("logs", exist_ok=True)
-                    _js.dump({"ts": int(time.time()), "psych": psych,
-                              "sentiment": sent_full, "fg": fg},
-                             open("logs/sentiment.json", "w"), ensure_ascii=False)
+                    import json as _js, tempfile as _tf, os as _os
+                    _os.makedirs("logs", exist_ok=True)
+                    _payload = {"ts": int(time.time()), "psych": psych,
+                                "sentiment": sent_full, "fg": fg}
+                    _tmp = "logs/_sentiment.json.tmp"
+                    with open(_tmp, "w", encoding="utf-8") as _f:
+                        _js.dump(_payload, _f, ensure_ascii=False)
+                        _f.flush()
+                        _os.fsync(_f.fileno())
+                    _os.replace(_tmp, "logs/sentiment.json")
                 except Exception:
                     pass
                 # kirim ke agent bertugas (Vega/Convinced) — sudah lewat `psych` arg
