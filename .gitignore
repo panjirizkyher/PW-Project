@@ -26,3 +26,7 @@ logs/multiasset_report.json
 cloudflared.exe
 tunnel.log
 config/.env
+
+# junk / scratch
+gh_search.json
+s.json

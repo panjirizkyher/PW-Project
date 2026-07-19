@@ -15,8 +15,8 @@ risk:
   account_balance: 10000.0
   risk_per_trade_pct: 2.0
   max_daily_loss_pct: 10.0
-  min_reward_risk_ratio: 0.6
-  max_open_positions: 16
+  min_reward_risk_ratio: 1.5
+  max_open_positions: 8
   max_total_exposure_pct: 80.0
   max_hold_bars: 30
 signal:
@@ -24,7 +24,7 @@ signal:
   rsi_period: 14
   rsi_oversold: 35.0
   rsi_overbought: 70.0
-  target_reward_risk_ratio: 0.8
+  target_reward_risk_ratio: 2.0
   breakout_bars: 12
   base_url: https://inference.nousresearch.com/v1
   model: tencent/hy3:free

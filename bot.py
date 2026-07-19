@@ -106,6 +106,9 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         self._ensure_settings()
+        # strip query string biar logs/*.json?t=... ke-serve (dashboard pakai cache-bust)
+        if "?" in self.path:
+            self.path = self.path.split("?", 1)[0]
         if self.path.startswith("/api/"):
             if not self._auth_ok():
                 self._send(401, {"ok": False, "error": "unauthorized"})
